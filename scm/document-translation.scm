@@ -16,28 +16,73 @@
 ;;;; You should have received a copy of the GNU General Public License
 ;;;; along with LilyPond.  If not, see <http://www.gnu.org/licenses/>.
 
+;; Distinguish translator types (engravers, performers, other)
+;; by their names. An alternative would be to implement proper
+;; type predicates ly:engraver? and ly:performer?.
+
+(define (engraver? trans)
+  (string-suffix-ci? "Engraver" (symbol->string (ly:translator-name trans))))
+ 
+(define (performer? trans)
+  (string-suffix-ci? "Performer" (symbol->string (ly:translator-name trans))))
+
+(define name->translator-table (make-hash-table 61))
+(map
+ (lambda (x)
+   (hash-set! name->translator-table (ly:translator-name x) x))
+ (ly:get-all-translators))
+
+(define (find-translator-by-name name-sym)
+  "NAME-SYM is a symbol."
+  (hash-ref name->translator-table name-sym #f))
+
 (define (engraver-makes-grob? name-symbol grav)
   (memq name-symbol (assoc 'grobs-created (ly:translator-description grav))))
 
-(define (engraver-accepts-music-type? name-symbol grav)
+(define (translator-accepts-music-type? name-symbol grav)
   (memq name-symbol (assoc 'events-accepted (ly:translator-description grav))))
 
-(define (engraver-accepts-music-types? types grav)
+(define (translator-accepts-music-types? types grav)
   (if (null? types)
       #f
       (or
-       (engraver-accepts-music-type? (car types) grav)
-       (engraver-accepts-music-types? (cdr types) grav))))
+       (translator-accepts-music-type? (car types) grav)
+       (translator-accepts-music-types? (cdr types) grav))))
 
-(define (engraver-doc-string engraver in-which-contexts)
-  (let* ((propsr (assoc-get 'properties-read (ly:translator-description engraver)))
-	 (propsw (assoc-get 'properties-written (ly:translator-description engraver)))
-	 (accepted  (assoc-get 'events-accepted (ly:translator-description engraver)))
-	 (name-sym  (ly:translator-name engraver))
+(define (contexts-with-translator name-sym)
+  (let* ((output-def (if (performer? (find-translator-by-name name-sym))
+                         $defaultmidi
+                         $defaultlayout))
+         (layout-alist (ly:output-description output-def))
+         (context-description-alist (map cdr layout-alist)))
+    (apply append
+           (map
+            (lambda (x)
+              (let* ((context (assoc-get 'context-name x))
+                     (group (assq-ref x 'group-type))
+                     (consists (append
+                                (if group
+                                    (list group)
+                                    '())
+                                (assoc-get 'consists x))))
+                (if (member name-sym consists)
+                    (list context)
+                    '())))
+            context-description-alist))))
+
+(define (translator-doc-string translator in-which-contexts)
+  (let* ((propsr (assoc-get 'properties-read 
+                            (ly:translator-description translator)))
+         (propsw (assoc-get 'properties-written
+                            (ly:translator-description translator)))
+         (accepted  (assoc-get 'events-accepted
+                               (ly:translator-description translator)))
+         (name-sym  (ly:translator-name translator))
 	 (name-str (symbol->string name-sym))
-	 (desc (assoc-get 'description (ly:translator-description engraver)))
-	 (grobs (engraver-grobs engraver)))
-
+         (desc (assoc-get 'description (ly:translator-description translator)))
+         (grobs (if (engraver? translator)
+                    (engraver-grobs translator)
+                    '())))
     (string-append
      desc
      "\n\n"
@@ -75,23 +120,7 @@
      "\n\n"
 
      (if in-which-contexts
-	 (let* ((layout-alist (ly:output-description $defaultlayout))
-		(context-description-alist (map cdr layout-alist))
-		(contexts
-		 (apply append
-			(map
-			 (lambda (x)
-			   (let* ((context (assoc-get 'context-name x))
-				  (group (assq-ref x 'group-type))
-				  (consists (append
-					     (if group
-						 (list group)
-						 '())
-					     (assoc-get 'consists x))))
-			     (if (member name-sym consists)
-				 (list context)
-				 '())))
-			 context-description-alist)))
+	 (let* ((contexts (contexts-with-translator name-sym))
 		(context-list (human-listify (map ref-ify
 						  (sort
 						   (map symbol->string contexts)
@@ -106,30 +135,20 @@
 	    "."))
 	 ""))))
 
-;; First level Engraver description
-(define (engraver-doc grav)
+;; First level Translator description
+(define (translator-doc grav)
   (make <texi-node>
     #:name (symbol->string (ly:translator-name grav))
-    #:text (engraver-doc-string grav #t)))
+    #:text (translator-doc-string grav #t)))
 
 ;; Second level, part of Context description
-(define name->engraver-table (make-hash-table 61))
-(map
- (lambda (x)
-   (hash-set! name->engraver-table (ly:translator-name x) x))
- (ly:get-all-translators))
-
-(define (find-engraver-by-name name)
-  "NAME is a symbol."
-  (hash-ref name->engraver-table name #f))
-
-(define (document-engraver-by-name name)
+(define (document-translator-by-name name)
   "NAME is a symbol."
 
-  (let* ((eg (find-engraver-by-name name)))
+  (let* ((eg (find-translator-by-name name)))
 
     (cons (string-append "@code{" (ref-ify (symbol->string name)) "}")
-	  (engraver-doc-string eg #f))))
+	  (translator-doc-string eg #f))))
 
 (define (document-property-operation op)
   (let ((tag (car op))
@@ -157,17 +176,40 @@
 	      (scm->texi (car args))))
      )))
 
+(define (context-doc context-descs)
+  "CONTEXT-DESCS has the form
+     (name-sym context-desc-layout context-desc-midi),
+   where either of layout-content-desc and midi-content-desc
+   may be '()."
+  (let* ((name-sym (car context-descs))
+         (name (symbol->string name-sym))
+         (context-desc-layout (cadr context-descs))
+         (context-desc-midi (caddr context-descs))
+         (desc-layout (assoc-get 'description context-desc-layout ""))
+         (desc-midi (assoc-get 'description context-desc-midi ""))
+         (desc "")
+         (lookup-all (lambda (key)
+                       (delete-duplicates
+                        (append
+                         (assoc-get key context-desc-layout '())
+                         (assoc-get key context-desc-midi '())))))
+         (aliases (map symbol->string (lookup-all 'aliases)))
+         (accepts (lookup-all 'accepts))
+         (consists (lookup-all 'consists))
+         (props (lookup-all 'property-ops))
+         (grobs  (context-grobs context-desc-layout))
+         (grob-refs (map ref-ify (sort grobs ly:string-ci<?))))
 
-(define (context-doc context-desc)
-  (let* ((name-sym (assoc-get 'context-name context-desc))
-	 (name (symbol->string name-sym))
-	 (aliases (map symbol->string (assoc-get 'aliases context-desc)))
-	 (desc (assoc-get 'description context-desc "(not documented"))
-	 (accepts (assoc-get 'accepts context-desc))
-	 (consists (assoc-get 'consists context-desc))
-	 (props (assoc-get 'property-ops context-desc))
-	 (grobs  (context-grobs context-desc))
-	 (grob-refs (map ref-ify (sort grobs ly:string-ci<?))))
+    (if (null? desc-layout) (set! desc-layout ""))
+    (if (null? desc-midi) (set! desc-midi ""))
+    (set! desc (string-append
+                desc-layout
+                (if (not (or (equal? desc-layout "")
+                             (equal? desc-midi "")))
+                    "\n"
+                    "")
+                desc-midi))
+    (if (equal? desc "") (set! desc "(not documented)"))
 
     (make <texi-node>
       #:name name
@@ -211,14 +253,14 @@
        (if (null? consists)
 	   ""
 	   (string-append
-	    "\n\nThis context is built from the following engraver(s):"
+            "\n\nThis context is built from the following translator(s):"
 	    (description-list->texi
-	     (map document-engraver-by-name (sort consists ly:symbol-ci<?))
+             (map document-translator-by-name (sort consists ly:symbol-ci<?))
 	     #t)))))))
 
 (define (engraver-grobs grav)
   (let* ((eg (if (symbol? grav)
-		 (find-engraver-by-name grav)
+		 (find-translator-by-name grav)
 		 grav)))
     (if (eq? eg #f)
 	'()
@@ -230,37 +272,97 @@
 		    (if group
 			(list group)
 			'())
-		    (assoc-get 'consists context-desc)))
+                    (assoc-get 'consists context-desc '())))
 	 (grobs  (apply append
 			(map engraver-grobs consists))))
     grobs))
 
 (define (all-contexts-doc)
-  (let* ((layout-alist
-	  (sort (ly:output-description $defaultlayout)
-		(lambda (x y) (ly:symbol-ci<? (car x) (car y)))))
-	 (names (sort (map symbol->string (map car layout-alist)) ly:string-ci<?))
-	 (contexts (map cdr layout-alist)))
-
+  (let* ((layout-alist (ly:output-description $defaultlayout))
+         (midi-alist (ly:output-description $defaultmidi))
+         (all-name-syms (delete-duplicates
+                         (sort (append (map car layout-alist)
+                                       (map car midi-alist))
+                               ly:symbol-ci<?)))
+         (context-descs-list
+          (map (lambda (name-sym)
+                 (list
+                  name-sym
+                  (assoc-get name-sym layout-alist '())
+                  (assoc-get name-sym midi-alist '())))
+               all-name-syms)))
     (make <texi-node>
       #:name "Contexts"
       #:desc "Complete descriptions of all contexts."
       #:children
-      (map context-doc contexts))))
+      (map context-doc context-descs-list))))
 
-(define all-engravers-list  (ly:get-all-translators))
-(set! all-engravers-list
-      (sort all-engravers-list
-	    (lambda (a b) (ly:string-ci<? (symbol->string (ly:translator-name a))
-				    (symbol->string (ly:translator-name b))))))
+(define all-translators-list 
+  (sort (ly:get-all-translators)
+        (lambda (a b)
+          (ly:symbol-ci<? (ly:translator-name a)
+                          (ly:translator-name b)))))
+
+(define all-engravers-list
+  (filter engraver? all-translators-list))
+
+(define all-performers-list
+  (filter performer? all-translators-list))
+
+(define all-other-translators-list
+  (filter (lambda (x) (not (or (engraver? x) (performer? x))))
+          all-translators-list))
 
 (define (all-engravers-doc)
   (make <texi-node>
-    #:name "Engravers and Performers"
-    #:desc "All separate engravers and performers."
+    #:name "Engravers"
+    #:desc "All separate engravers."
     #:text "See @ruser{Modifying context plug-ins}."
     #:children
-    (map engraver-doc all-engravers-list)))
+    (map translator-doc all-engravers-list)))
+
+(define (all-performers-doc)
+  (make <texi-node>
+    #:name "Performers"
+    #:desc "All separate performers."
+    #:children
+    (map translator-doc all-performers-list)))
+
+(define (all-other-translators-doc)
+  (make <texi-node>
+    #:name "Other translators"
+    #:desc "Translators that are neither engravers nor performers."
+    #:children
+    (map translator-doc all-other-translators-list)))
+
+
+(define (all-translators-doc)
+  (make <texi-node>
+    #:name "Translators"
+    #:desc "Engravers, performers and other translators."
+    #:text "Translators are part of contexts. They @emph{accept} (or
+@emph{listen to}) music expressions of certain types delivered by
+iterators as @emph{stream events} and process them. Additionally, they
+may @emph{acknowledge} output objects produced by other translators.
+
+There are two important translator subclasses:
+
+@itemize @bullet
+@item
+@strong{Engravers} produce @emph{layout objects}, also known as @emph{grobs},
+the building blocks for graphical output.
+
+@item
+@strong{Performers} produce @emph{audio items} used for assembling
+MIDI output.
+@end itemize
+
+@emph{Context properties} control the behaviour of translators."
+    #:children
+    (list
+     (all-engravers-doc)
+     (all-performers-doc)
+     (all-other-translators-doc))))
 
 (define (translation-properties-doc-string lst)
   (let* ((ps (sort (map symbol->string lst) ly:string-ci<?))
@@ -279,7 +381,7 @@
     #:children
     (list
      (all-contexts-doc)
-     (all-engravers-doc)
+     (all-translators-doc)
      (make <texi-node>
        #:name "Tunable context properties"
        #:desc "All tunable context properties."

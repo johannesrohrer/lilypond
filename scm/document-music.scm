@@ -56,8 +56,8 @@
 				 (map ly:translator-name
 				      (filter
 				       (lambda (x)
-					 (engraver-accepts-music-type? (car entry) x))
-				       all-engravers-list)))))))
+					 (translator-accepts-music-type? (car entry) x))
+				       all-translators-list)))))))
     (make <texi-node>
       #:name (symbol->string (car entry))
       #:text
@@ -98,8 +98,8 @@
 				     (map ly:translator-name
 					  (filter
 					   (lambda (x)
-					     (engraver-accepts-music-types? classes x))
-					   all-engravers-list)))))
+					     (translator-accepts-music-types? classes x))
+					   all-translators-list)))))
 			  ""))
 	 (event-texi (if classes
 			 (string-append
