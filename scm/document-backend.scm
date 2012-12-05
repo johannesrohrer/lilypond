@@ -122,7 +122,7 @@ node."
 
   (let* ((meta (assoc-get 'meta description))
 	 (name (assoc-get 'name meta))
-	 ;;       (bla (display name))
+	 (namestr (symbol->string name))
 	 (ifaces (map lookup-interface (assoc-get 'interfaces meta)))
 	 (ifacedoc (map ref-ify
 			(sort
@@ -132,10 +132,7 @@ node."
 				    (ly:error (_ "pair expected in doc ~s") name)))
 			      ifaces)
 			 ly:string-ci<?)))
-	 (engravers (filter
-		     (lambda (x) (engraver-makes-grob? name x))
-		     all-engravers-list))
-	 (namestr (symbol->string name))
+	 (engravers (translators-making-output-object name))
 	 (engraver-names (map symbol->string
 			      (map ly:translator-name engravers)))
 	 (engraver-list (human-listify
