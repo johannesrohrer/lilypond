@@ -24,169 +24,200 @@
 ;; * all-grob-descriptions
 ;; * all-user-translation-properties
 ;; * all-internal-translation-properties
+
+;;;; Class infrastructure
+
+;;; Contexts
+
+(define-class <context-doc> (<texi-node>)
+  ;; "parent" <context-type-doc> instance
+  (context-type-doc
+   #:init-keyword #:context-type-doc
+   #:getter context-type-doc)
+  ;; context record in the form (name-sym . info-alist) as returned as
+  ;; part of (ly.output-description OUTPUT-DEF). info-alist contains
+  ;; most of the interesting data; use the 'attr' method defined below
+  ;; to access it.
+  (context-desc #:init-keyword #:context-desc #:getter context-desc))
+
+(define-method (attr attribute (context-doc <context-doc>) not-found-result)
+  (assoc-get attribute
+             (cdr (slot-ref context-doc 'context-desc))
+             not-found-result))
+
+(define-method (attr attribute obj) (attr attribute obj #f))
+
+(define-method (name-sym (cd <context-doc>))
+  (car (slot-ref cd 'context-desc)))
+
+(define-method (type-string (cd <context-doc>))
+  (type-string (context-type-doc cd)))
+
+(define-method (initialize (cd <context-doc>) initargs)
+  (next-method)
+  (set!
+   (node-name cd)
+   (string-append (symbol->string (name-sym cd))
+                  (node-suffix (context-type-doc cd)))))
+
+
+;;; Context types (layout, MIDI)
+
+(define-class <context-type-doc> (<texi-node>)
+  (output-def #:init-keyword #:output-def)
+  (type-string #:init-keyword #:type-string #:getter type-string)
+  ;; The node-suffix is appended to the texinfo node name of each
+  ;; context that belongs to this output definition.
+  (node-suffix #:init-keyword #:node-suffix #:getter node-suffix))
+
+(define-method (initialize (ctd <context-type-doc>) initargs)
+  (next-method)
+  (set!
+   (node-children ctd)
+   (let ((context-descs
+          (sort (ly:output-description (slot-ref ctd 'output-def))
+                (lambda (x y) (ly:symbol-ci<? (car x) (car y))))))
+     (map (lambda (context-desc)
+            (make <context-doc>
+              #:context-type-doc ctd
+              #:context-desc context-desc))
+          context-descs))))
+
+
+;;; Translators
+
+(define-class <translator-doc> (<texi-node>)
+  ;; <translator> object
+  (translator #:init-keyword #:translator #:getter translator)
+  (translator-type-doc   ; "parent" <translator-type-doc> object
+   #:init-keyword #:translator-type-doc
+   #:getter translator-type-doc))
+
+(define-method (attr attribute (td <translator-doc>) not-found-result)
+  (assoc-get attribute 
+             (ly:translator-description (translator td))
+             not-found-result))
+
+(define-method (name-sym (td <translator-doc>))
+  (ly:translator-name (translator td)))
+
+(define-method (type-string (td <translator-doc>))
+  (type-string (translator-type-doc td)))
+
+(define-method (initialize (td <translator-doc>) initargs)
+  (next-method)
+  (set! (node-name td) (symbol->string (name-sym td))))
+
+
+;;; Translator types (engravers, performers, ...)
 ;;
-;; together with the variables output-def-descs, translator-types and
-;; output-object-types defined here below.
+;; In contrast to context types, this classification is purely
+;; cosmetic. Specifically, associating a translator with contexts of
+;; the right type does not depend on it.
+
+(define-class <translator-type-doc> (<texi-node>)
+  (type-string #:init-keyword #:type-string #:getter type-string)
+  (translators #:init-keyword #:translators #:getter translators))
+
+(define-method (initialize (ttd <translator-type-doc>) initargs)
+  (next-method)
+  (set! (node-children ttd)
+        (map (lambda (translator)
+               (make <translator-doc>
+                 #:translator translator
+                 #:translator-type-doc ttd))
+             (translators ttd))))
 
 
-;;; Helper functions
+;;; Output objects, e.g. grobs
 
-(define (predicate-alist-lookup element lst)
-  "Return the first element of LST that is an alist with a
-'predicate entry that returns not #f when applied to ELEMENT. Return
-#f if none is found."
-  (if (null? lst)
-      #f
-      (let* ((first-alist (car lst))
-             (pred (assoc-get 'predicate first-alist)))
-        (if (and pred (pred element))
-            first-alist
-            (predicate-alist-lookup element (cdr lst))))))
+(define-class <output-object-doc> (<texi-node>)
+  ;; "parent" <output-object-type-doc> instance
+  (type #:init-keyword #:type #:getter type)
+  ;; related alist from all-grob-description etc.
+  (record #:init-keyword #:object-record #:getter object-record))
 
-(define (group-by-function-result func lst)
-  "Partition LST into sublists of elements that yield the same value
-when FUNC is applied to them, with that value prepended to each
-sublist."
-  (let ((plist '()))
-    (map (lambda (x)
-           (let ((key (func x)))
-             (set! plist
-                   (assoc-set! plist
-                               key
-                               (append (assoc-get key plist '())
-                                       (list x))))))
-         lst)
-    plist))
+(define-method (name-sym (ood <output-object-doc>))
+  (car (object-record ood)))
 
-;; The context description alists returned by ly:output-description
-;; contain name symbols for translators rather than translator objects,
-;; so we need a lookup table.
-(define name->translator-table (make-hash-table 61))
-(map
- (lambda (x)
-   (hash-set! name->translator-table (ly:translator-name x) x))
- (ly:get-all-translators))
+(define-method (type-string (ood <output-object-doc>))
+  (type-string (type ood)))
 
-(define (find-translator-by-name-sym name-sym)
-  (hash-ref name->translator-table name-sym #f))
+(define-method (initialize (ood <output-object-doc>) initargs)
+  (next-method)
+  (set! (node-name ood) (symbol->string (car (object-record ood)))))
+
+(define-class <undocumented-output-object-doc> (<output-object-doc>)
+  (type #:init-value #f)
+  (record #:init-value #f)
+  (name-sym #:init-keyword #:name-sym #:getter name-sym)
+  (type-string #:init-value "undocumented output object" #:getter type-string))
+
+(define-method (ref-ify (uoo <undocumented-output-object-doc>))
+  (node-name uoo)) ; no cross-reference for undocumented objects
 
 
-;;; Context classification (layout, MIDI)
+;;; Output object types (layout objects, audio items...)
 
-(define output-def-descs
-  (list
-   (list
-    $defaultlayout
-    '(context-type-name . "layout context")
-    '(context-category-name . "Layout contexts")
-    '(context-category-desc . "Contexts for graphical output")
-    '(context-category-text . "Layout contexts are built from
+(define-class <output-object-type-doc> (<texi-node>)
+  (type-string #:init-keyword #:type-string #:getter type-string)
+  (output-object-records
+   #:init-keyword #:object-records #:getter object-records))
+
+(define-method (initialize (oot <output-object-type-doc>) initargs)
+  (next-method)
+  (set!
+   (node-children oot)
+   (map (lambda (rec)
+          (make <output-object-doc> #:type oot #:object-record rec))
+        (object-records oot))))
+
+
+
+;;;; Assemble documentation structure
+
+;;; Contexts
+
+(define all-context-types-doc
+  (make <texi-node>
+    #:name "Contexts"
+    #:desc "Complete descriptions of all contexts."
+    #:children
+    (list
+     (make <context-type-doc>
+       #:output-def $defaultlayout
+       #:type-string "layout-context"
+       #:name "Layout contexts"
+       #:desc "Contexts for graphical output"
+       #:text "Layout contexts are built from
 @ref{Engravers} to produce graphical output. Their default versions
-are defined in @code{ly/engraver-init.ly}.")
-    ;; The context-node-suffix is appended to the texinfo node name
-    ;; of each context node that belongs to this output definition.
-    ;; For backwards compatibility of links, use no suffix for layout
-    ;; contexts.
-    '(context-node-suffix . ""))
+are defined in @code{ly/engraver-init.ly}."
+       ;; For backwards compatibility of links, use no suffix for layout
+       ;; contexts.
+       #:node-suffix "")
 
-   (list
-    $defaultmidi
-    '(context-type-name . "MIDI context")
-    '(context-category-name . "MIDI contexts")
-    '(context-category-desc . "Contexts for MIDI output")
-    '(context-category-text . "MIDI contexts are built from
+     (make <context-type-doc>
+       #:output-def $defaultmidi
+       #:type-string "MIDI context"
+       #:name "MIDI contexts"
+       #:desc "Contexts for MIDI output"
+       #:text "MIDI contexts are built from
 @ref{Performers} to produce MIDI output. Their default versions are
-defined in @code{ly/performer-init.ly}")
-    '(context-node-suffix . " (MIDI)"))))
+defined in @code{ly/performer-init.ly}"
+       #:node-suffix " (MIDI)"))))
 
 
-;;; Retrieving context information
+;;; Translators
 
-;; (ly.output-description OUTPUT-DEF) returns a list of context
-;; descriptions of the form (name-sym . info-alist), where info-alist
-;; contains most of the interesting data.
-;;
-;; Collect these descriptions from all output definitions in a
-;; variable, and enrich each info-alist with an 'output-def entry,
-;; a 'type-name entry and a 'node-name entry.
-;;
-;; Within this file, use these context-desc elements to unambigously
-;; identify contexts.
-(define all-context-descs-list
-  (apply
-   append
-   (map
-    (lambda (output-def-desc)
-      (let* ((output-def (car output-def-desc))
-             (output-desc (sort (ly:output-description output-def)
-                                (lambda (x y)
-                                 (ly:symbol-ci<? (car x) (car y)))))
-             (category-data (cdr output-def-desc))
-             (type-name (assoc-get 'context-type-name category-data))
-             (suffix (assoc-get 'context-node-suffix category-data)))
-        (map
-          (lambda (context-desc)
-            (let* ((name-sym (car context-desc))
-                   (info-alist (cdr context-desc))
-                   (node-name (string-append (symbol->string name-sym)
-                                             suffix)))
-              (cons name-sym
-                    (acons 'output-def output-def
-                     (acons 'type-name type-name
-                      (acons 'node-name node-name info-alist))))))
-          output-desc)))
-    output-def-descs)))
-
-(define* (context-attr attr context-desc #:optional (not-found-result #f))
-  (assoc-get attr (cdr context-desc) not-found-result))
-
-(define (context-name-sym context-desc)
-  (car context-desc))
-
-(define (context-ref context-desc)
-  (ref-ify (context-attr 'node-name context-desc)))
-
-(define (contexts-with-name-sym name-sym)
-  (filter (lambda (cd) (eq? name-sym (context-name-sym cd)))
-          all-context-descs-list))
-          
-(define (contexts-from-output-def output-def)
-  (filter (lambda (cd) (equal? output-def (context-attr 'output-def cd)))
-          all-context-descs-list))
-          
-(define (find-context-desc name-sym output-def)
-  (let ((candidates
-         (filter (lambda (cd) (equal? output-def
-                                      (context-attr 'output-def cd)))
-                 (contexts-with-name-sym name-sym))))
-    (if (null? candidates)
-        #f
-        (car candidates))))
-
-(define (corresponding-context-strings name-sym exclude-output-def)
-  (let* ((all-with-name-sym (contexts-with-name-sym name-sym))
-         (all-relevant
-           (if exclude-output-def
-               (filter (lambda (cd)
-                         (not (equal? exclude-output-def
-                                      (context-attr 'output-def cd))))
-                       all-with-name-sym)
-               all-with-name-sym)))
-    (map (lambda (cd)
-           (format "Corresponding ~a: ~a.\n\n"
-                   (context-attr 'type-name cd)
-                   (context-ref cd)))
-         all-relevant)))
-
-
-;;; Translator classification (engravers, performers, ...)
+(define all-translators-list
+  (sort (ly:get-all-translators)
+        (lambda (a b)
+          (ly:symbol-ci<? (ly:translator-name a)
+                          (ly:translator-name b)))))
 
 ;; Identify specific translator types (currently: engravers and
 ;; performers) by their names. An alternative would be to implement
 ;; proper type predicates.
-;;
-;; This separation is purely cosmetic; specifically, associating a
-;; translator with the correct context types does not depend on it.
 
 (define (engraver? translator)
   (string-suffix-ci? "Engraver"
@@ -196,408 +227,15 @@ defined in @code{ly/performer-init.ly}")
   (string-suffix-ci? "Performer"
                      (symbol->string (ly:translator-name translator))))
 
-(define specific-translator-types
-  `(((type-name . "engraver")
-     (predicate . ,engraver?)
-     (category-node-name . "Engravers")
-     (category-node-desc . "All separate engravers")
-     (category-node-text . "Engravers produce @emph{layout objects},
-also known as @emph{grobs}, the building blocks for graphical
-output. They are part of @ref{Layout contexts}.
-
-See also @ruser{Modifying context plug-ins}."))
-
-    ((type-name . "performer")
-     (predicate . ,performer?)
-     (category-node-name . "Performers")
-     (category-node-desc . "All separate performers")
-     (category-node-text . "Performers produce @emph{audio items} used
-for assembling MIDI output. They are part of @ref{MIDI contexts}."))))
-
-;; Any translator that does not fit one of these specific types
-;; shall wind up in a final default category.
-
-(define (no-specific-translator? translator)
-  (not (predicate-alist-lookup translator specific-translator-types)))
-
-(define translator-types
-  (append
-   specific-translator-types
-   `(((type-name . "translator")
-      (predicate . ,no-specific-translator?)
-      (category-node-name . "Other translators")
-      (category-node-desc . "Translators that are neither engravers nor
-performers.")
-      (category-node-text . "")))))
-
-(define (translator-type-alist translator)
-  (predicate-alist-lookup translator translator-types))
-
-(define (translator-type-name translator)
-  (assoc-get 'type-name (translator-type-alist translator)))
-
-(define all-translators-list
-  (sort (ly:get-all-translators)
-        (lambda (a b)
-          (ly:symbol-ci<? (ly:translator-name a)
-                          (ly:translator-name b)))))
-
-
-;;; Output object classification (layout objects, audio items...)
-
-(define specific-output-object-types
-  `(((type-name . "layout object")
-     (predicate . ,(lambda (name-sym)
-                     (memq name-sym
-                           (map car all-grob-descriptions)))))
-
-    ;; Audio item descriptions don't exist yet.
-    ;;((type-name . "audio item")
-    ;; (predicate . ,(lambda (name-sym)
-    ;;                (memq name-sym
-    ;;                      (map car all-audio-item-descriptions)))))
-   ))
-
- (define (unknown-output-object? name-sym)
-    (not (predicate-alist-lookup name-sym
-                                 specific-output-object-types)))
-
-(define output-object-types
-  (append
-   specific-output-object-types
-   `((type-name . "undocumented output object")
-     (predicate . ,unknown-output-object?))))
-
-(define (output-object-type-alist oo-name-sym)
-  (predicate-alist-lookup oo-name-sym output-object-types))
-
-(define (output-object-type-name oo-name-sym)
-  (assoc-get 'type-name (output-object-type-alist oo-name-sym)))
-
-(define (output-object-ref oo-name-sym)
-  (if (unknown-output-object? oo-name-sym)
-      (symbol->string oo-name-sym)
-      (ref-ify (symbol->string oo-name-sym))))
-
-(define (output-objects-creation-strings creator oo-list)
-  "Assemble a list of strings
-'This CREATOR creates the following [output object](s): ...',
-one for each output object type present in OO-LIST."
-  (let* ((oos-by-type (group-by-function-result output-object-type-name
-                                                oo-list)))
-    (if (null? oo-list)
-        (list (format "This ~a does not create any output objects.\n\n"
-                      creator))
-        (map (lambda (oo-type-entry)
-               (let ((oo-type (car oo-type-entry)) ; e.g. "layout object"
-                     (oo-sublist (cdr oo-type-entry)))
-                 (format "This ~a creates the following ~a(s):\n\n~a\n\n"
-                         creator
-                         oo-type
-                         (human-listify (map output-object-ref oo-sublist)))))
-             oos-by-type))))
-
-
-;;; Translator - output object relation
-
-(define (translator-output-objects translator)
-  "Return a list of name-symbols."
-  ;; For historical reasons, the relevant key in the translator
-  ;; description is named grobs-created, no matter whether the
-  ;; translator actually is an engraver or some other type.
-  (delete-duplicates
-   (sort
-    (assoc-get 'grobs-created (ly:translator-description translator) '())
-    ly:symbol-ci<?)))
-
-(define (translators-making-output-object name-sym)
-  "Return a list of translator objects that create output object
-NAME-SYM."
-  (filter
-   (lambda (trans)
-     (memq name-sym (translator-output-objects trans)))
-   (ly:get-all-translators)))
-
-(define (translator-makes-objects-string translator)
-  "Assemble 'This [translator] creates the following [object](s): ...' lines."
-  (let* ((output-objects (translator-output-objects translator))
-         (ttype (translator-type-name translator)) ; e.g. "engraver"
-         (desc-lines (output-objects-creation-strings ttype output-objects)))
-    (string-join desc-lines)))
-
-
-;;; Translator - music expression relation
-
-(define (translator-accepts-music-type? event-name-symbol translator)
-  (memq event-name-symbol
-        (assoc 'events-accepted (ly:translator-description translator))))
-
-(define (translator-accepts-music-types? types translator)
-  (if (null? types)
-      #f
-      (or
-       (translator-accepts-music-type? (car types) translator)
-       (translator-accepts-music-types? (cdr types) translator))))
-
-(define (translator-accepts-music-types-string translator)
-  (let ((accepted (assoc-get 'events-accepted
-                             (ly:translator-description translator))))
-    (if (null? accepted)
-        ""
-        (format "Music types accepted:\n\n~a\n\n"
-                (human-listify
-                 (map ref-ify (sort (map symbol->string accepted)
-                                    ly:string-ci<?)))))))
-
-
-;;; Translator - Context relation
-
-(define (contexts-with-translator translator)
-  "Find contexts that consist TRANSLATOR. Return a list of context
-descriptions."
-  (let ((tr-name-sym (ly:translator-name translator)))
-    (filter
-     (lambda (cd) 
-       (let ((group (context-attr 'group-type cd))
-             (consists-name-syms (sort (context-attr 'consists cd)
-                                 ly:symbol-ci<?)))
-         (or (member tr-name-sym consists-name-syms)
-             (and group (eq? tr-name-sym group)))))
-     all-context-descs-list)))
-
-(define (contexts-with-translator-string translator)
-  (let* ((translator-name-str (symbol->string (ly:translator-name translator)))
-         (context-descs (contexts-with-translator translator))
-         (context-list (human-listify
-                        (map context-ref context-descs))))
-    (if (null? context-descs)
-        (format "@code{~a} is not part of any context.\n\n"
-                translator-name-str)
-        (format "@code{~a} is part of the following context(s):\n\n~a\n\n"
-                translator-name-str
-                context-list))))
-
-
-;;; Translator - property relation
-
-(define (translator-properties-list-string props)
-  (let ((description-list (map (lambda (x)
-                                 (property->texi 'translation x '()))
-                               (sort props ly:symbol-ci<?))))
-    (if (null? props)
-        ""
-        (description-list->texi description-list #t))))
-
-(define (translator-properties-read-string translator)
-  (let* ((props (assoc-get 'properties-read
-                           (ly:translator-description translator)
-                           '()))
-         (str (translator-properties-list-string props)))
-    (if (string-null? str)
-        ""
-        (format "Properties (read)\n~a\n\n" str))))
-
-(define (translator-properties-written-string translator)
-  (let* ((props (assoc-get 'properties-written
-                           (ly:translator-description translator)
-                           '()))
-         (str (translator-properties-list-string props)))
-    (if (string-null? str)
-        ""
-        (format "Properties (written)\n~a\n\n" str))))
-
-
-;;; Context - output object relation
-
-(define (context-output-objects context-desc)
-  (let* ((group (assq-ref (cdr context-desc) 'group-type))
-         (consists-syms (assoc-get 'consists (cdr context-desc) '()))
-         (consists (map find-translator-by-name-sym consists-syms)))
-    (delete-duplicates
-     (sort
-      (apply append (map translator-output-objects consists))
-      ly:symbol-ci<?))))
-
-(define (context-creates-output-objects-string context-desc)
-  (let* ((oos (context-output-objects context-desc))
-         (desc-lines (output-objects-creation-strings "context" oos)))
-    (string-join desc-lines)))
-
-
-;;; Context - property relation
-
-(define (document-property-operation prop-op context-desc)
-  (let* ((tag (car prop-op))
-         (context-sym (cadr prop-op))
-         (args (cddr prop-op)))
-    (cond
-     ((equal?  tag 'push)
-      (let ((value (car args))
-            (path (cdr args)))
-        (format "@item Set grob-property @code{~a} in ~a to ~a.\n"
-                (string-join (map symbol->string path) " ")
-                (context-ref context-desc)
-                (scm->texi value))))
-     ((equal? (object-property context-sym 'is-grob?) #t) "")
-     ((equal? tag 'assign)
-      (format #f "@item Set translator property @code{~a} to ~a.\n"
-              context-sym
-              (scm->texi (car args)))))))
-
-(define (context-property-operations-string context-desc)
-  (let* ((output-def (context-attr 'output-def context-desc))
-         (prop-ops (context-attr 'property-ops context-desc '()))
-         (prop-op-items (map (lambda (prop-op)
-                               (document-property-operation prop-op
-                                                            context-desc))
-                             prop-ops))
-         (prop-ops-string (string-join
-                           (sort prop-op-items ly:string-ci<?))))
-    (if (string-null? prop-ops-string)
-        ""
-        (format
-         "This context sets the following properties\n\n@itemize @bullet\n~a@end itemize\n\n"
-         prop-ops-string))))
-
-
-;;; Assembled single translator documentation
-
-(define (translator-doc-string translator show-contexts?)
-  (let ((desc (assoc-get 'description (ly:translator-description translator))))
-    (string-append
-     desc
-     "\n\n"
-
-     ;; "Music types accepted: ..."
-     (translator-accepts-music-types-string translator)
-
-     ;; "Properties (read) ..." / "Properties (written) ..."
-     (translator-properties-read-string translator)
-     (translator-properties-written-string translator)
-
-     ;; "This (translator) creates the following (object)(s): ..."
-     (translator-makes-objects-string translator)
-
-     ;; Optional "(translator) is part of the following context(s): ..."
-     (if show-contexts?
-         (contexts-with-translator-string translator)
-         ""))))
-
-(define (translator-doc translator)
-  "Standalone translator documentation node"
-  (make <texi-node>
-    #:name (symbol->string (ly:translator-name translator))
-    #:text (translator-doc-string translator #t)))
-
-(define (translator-doc-embedded translator)
-  "Shortened translator description for embedding into context description."
-  (cons (format "@code{~a}"
-                (ref-ify (symbol->string (ly:translator-name translator))))
-        (translator-doc-string translator #f)))
-
-
-;;; Assembled single context documentation
-
-(define (context-doc context-desc)
-  (let* ((name-sym (context-name-sym context-desc))
-         (name (symbol->string name-sym))
-         (node-name (context-attr 'node-name context-desc))
-         (desc (context-attr 'description context-desc))
-         (output-def (context-attr 'output-def context-desc))
-         (aliases-name-syms (sort (context-attr 'aliases context-desc)
-                                  ly:symbol-ci<?))
-         (accepts-name-syms (sort (context-attr 'accepts context-desc)
-                                  ly:symbol-ci<?))
-         (consists-name-syms (sort (context-attr 'consists context-desc)
-                                   ly:symbol-ci<?))
-         (prop-ops (context-attr 'property-ops context-desc))
-         ;; With 'Timing', there exists at least one "context" that
-         ;; appears as an alias, but is not a true context documented
-         ;; in the output description. That also means there is no
-         ;; documentation node to cross-reference. Isolate such cases
-         ;; so we can ref-ify the others.
-         (aliases-strings
-          (map (lambda (ns)
-                 (let ((cd (find-context-desc ns output-def)))
-                   (if cd
-                       (context-ref cd)
-                       (format "~a (alias only)" (symbol->string ns)))))
-               aliases-name-syms))
-         (accepts-strings
-          (map (lambda (ns)
-                 (context-ref (find-context-desc ns output-def)))
-               accepts-name-syms))
-         (consists (map find-translator-by-name-sym consists-name-syms)))
-    (if (or (not desc) (null? desc))
-        (set! desc "(not documented)"))
-    (make <texi-node>
-      #:name
-      node-name
-      #:text
-      (string-append
-       desc
-       "\n\n"
-
-       (if (null? aliases-strings)
-           ""
-           (format "This context also accepts commands for the following context(s): ~a.\n\n"
-                   (human-listify aliases-strings)))
-
-       ;; "Corresponding [layout/midi] context: ..."
-       (string-join (corresponding-context-strings name-sym output-def))
-
-       ;; "This context creates the following [output object](s): ..."
-       (context-creates-output-objects-string context-desc)
-
-       ;; "This context sets the following properties: ..."
-       (context-property-operations-string context-desc)
-
-       (if (null? accepts-strings)
-           "This context is a `bottom' context; it cannot contain other contexts.\n\n"
-           (format "Context @code{~a} can contain\n~a.\n\n"
-                   name
-                   (human-listify accepts-strings)))
-
-       (if (null? consists)
-           ""
-           (format "This context is built from the following translator(s):\n\n~a\n\n"
-                   (description-list->texi
-                    (map translator-doc-embedded consists)
-                    #t)))))))
-
-
-;;; High-level documentation nodes
-
-(define (context-type-node output-def-desc)
-  (let* ((output-def (car output-def-desc))
-         (output-desc (sort (ly:output-description output-def)
-                            (lambda (x y) (ly:symbol-ci<? (car x) (car y)))))
-         (category-data (cdr output-def-desc)))
-    (make <texi-node>
-      #:name (assoc-get 'context-category-name category-data)
-      #:desc (assoc-get 'context-category-desc category-data)
-      #:text (assoc-get 'context-category-text category-data)
-      #:children
-      (map context-doc (contexts-from-output-def output-def)))))
-
-(define (all-contexts-doc)
-  (make <texi-node>
-    #:name "Contexts"
-    #:desc "Complete descriptions of all contexts."
-    #:children
-    (map context-type-node output-def-descs)))
-
-(define (translator-type-node ttype-desc)
-  (let ((pred (assoc-get 'predicate ttype-desc)))
-    (make <texi-node>
-      #:name (assoc-get 'category-node-name ttype-desc)
-      #:desc (assoc-get 'category-node-desc ttype-desc)
-      #:text (assoc-get 'category-node-text ttype-desc)
-      #:children
-      (map translator-doc
-           (filter pred all-translators-list)))))
-
-(define (all-translators-doc)
+(define all-engravers-list (filter engraver? all-translators-list))
+(define all-performers-list (filter performer? all-translators-list))
+(define all-other-translators-list
+  (lset-difference eq?
+                   all-translators-list
+                   all-engravers-list
+                   all-performers-list))
+
+(define all-translator-types-doc
   (make <texi-node>
     #:name "Translators"
     #:desc "Engravers, performers and other translators."
@@ -609,7 +247,37 @@ objects produced by other translators.
 
 @emph{Context properties} control the behaviour of translators."
     #:children
-    (map translator-type-node translator-types)))
+    (list
+     (make <translator-type-doc>
+       #:type-string "engraver"
+       #:translators all-engravers-list
+       #:name "Engravers"
+       #:desc "All separate engravers"
+       #:text "Engravers produce @emph{layout objects},
+also known as @emph{grobs}, the building blocks for graphical
+output. They are part of @ref{Layout contexts}.
+
+See also @ruser{Modifying context plug-ins}.")
+
+     (make <translator-type-doc>
+       #:type-string "performer"
+       #:translators all-performers-list
+       #:name "Performers"
+       #:desc "All separate performers"
+       #:text "Performers produce @emph{audio items} used
+for assembling MIDI output. They are part of @ref{MIDI contexts}.")
+
+     (make <translator-type-doc>
+       #:type-string "translator"
+       #:translators all-other-translators-list
+       #:name "Other translators"
+       #:desc "Translators that are neither engravers nor performers."
+       #:text ""))))
+
+
+;;; Properties
+
+;; This could be expanded...
 
 (define (translation-properties-doc-string lst)
   (let* ((ps (sort (map symbol->string lst) ly:string-ci<?))
@@ -621,22 +289,394 @@ objects produced by other translators.
          (texi (description-list->texi propdescs #f)))
     texi))
 
+(define all-user-props-doc
+  (make <texi-node>
+    #:name "Tunable context properties"
+    #:desc "All tunable context properties."
+    #:text (translation-properties-doc-string
+            all-user-translation-properties)))
+
+(define all-internal-props-doc
+  (make <texi-node>
+    #:name "Internal context properties"
+    #:desc "All internal context properties."
+    #:text (translation-properties-doc-string
+            all-internal-translation-properties)))
+
+
+;;; Translation top level
+
 (define (translation-doc-node)
   (make <texi-node>
     #:name "Translation"
     #:desc "From music to layout or audio."
     #:children
     (list
-     (all-contexts-doc)
-     (all-translators-doc)
-     (make <texi-node>
-       #:name "Tunable context properties"
-       #:desc "All tunable context properties."
-       #:text (translation-properties-doc-string
-               all-user-translation-properties))
+     all-context-types-doc
+     all-translator-types-doc
+     all-user-props-doc
+     all-internal-props-doc)))
 
-     (make <texi-node>
-       #:name "Internal context properties"
-       #:desc "All internal context properties."
-       #:text (translation-properties-doc-string
-               all-internal-translation-properties)))))
+
+;;; Output objects
+
+;; Currently not really documented here, but in document-backend.scm.
+;; Use these structures to assemble sentences like "This [translator]
+;; creates the following [layout objects/audio items]", and to help
+;; with cross-referencing.
+
+(define documented-output-object-type-docs
+  (list
+   (make <output-object-type-doc>
+     #:type-string "layout object"
+     #:name "All layout objects"
+     #:object-records all-grob-descriptions)
+
+   ;; Audio item descriptions don't exist yet.
+   ;;(make <output-object-type>
+   ;;  #:type-string "audio item"
+   ;;  #:name "All audio items"
+   ;;  #:object-records all-audio-item-descriptions)
+   ))
+
+
+
+;;;; Collect information for cross-referencing
+
+;; Mainly, we need to be able to look up <*-doc> instances by name
+;; symbols, because that is how related entities are referenced in the
+;; output of ly:output-description, ly:translator-description etc.
+
+
+;;; Contexts
+
+(define all-context-docs-list
+  (apply append
+         (map node-children (node-children all-context-types-doc))))
+
+(define* (name-sym->context-docs
+          nsym
+          #:optional (from-cds all-context-docs-list))
+  (filter (lambda (cd) (eq? nsym (name-sym cd))) from-cds))
+
+(define-method (name-sym->context-doc ns (ctd <context-type-doc>))
+  (let ((candidates
+         (name-sym->context-docs ns (node-children ctd))))
+    (if (null? candidates)
+        #f
+        (car candidates))))
+
+
+;;; Translators
+
+(define all-translator-docs-list
+  (apply append
+         (map node-children (node-children all-translator-types-doc))))
+
+(define name-sym->translator-doc-table (make-hash-table 120))
+(map (lambda (td)
+       (hash-set! name-sym->translator-doc-table (name-sym td) td))
+     all-translator-docs-list)
+
+(define (name-sym->translator-doc name-sym)
+  (hash-ref name-sym->translator-doc-table name-sym #f))
+
+
+;;; Output objects
+
+(define all-output-object-docs-list
+  (apply append
+         (map node-children documented-output-object-type-docs)))
+
+(define name-sym->output-object-doc-table (make-hash-table 120))
+(map (lambda (ood)
+       (hash-set! name-sym->output-object-doc-table (name-sym ood) ood))
+     all-output-object-docs-list)
+
+(define (name-sym->output-object-doc name-sym)
+  (or (hash-ref name-sym->output-object-doc-table name-sym #f)
+      (make <undocumented-output-object> #:name-sym name-sym)))
+
+
+
+;;;; Assemble documentation node texts
+
+;;; Context - context relation
+
+(define-method (corresponding-context-strings (this-cd <context-doc>))
+  "Return 'Corresponding [layout context/MIDI context]: ...' string list."
+  (let* ((all-with-name-sym (name-sym->context-docs (name-sym this-cd)))
+         (all-relevant
+          (filter (lambda (cd)
+                    (not (equal? (context-type-doc this-cd)
+                                 (context-type-doc cd))))
+                  all-with-name-sym)))
+    (map (lambda (cd)
+           (format "Corresponding ~a: ~a.\n\n"
+                   (type-string cd)
+                   (ref-ify cd)))
+         all-relevant)))
+
+(define-method (aliases-string (cd <context-doc>))
+  (let* ((name-syms (sort (attr 'aliases cd) ly:symbol-ci<?))
+         ;; With 'Timing', there exists at least one "context" that
+         ;; appears as an alias, but is not a true context documented
+         ;; in the output description. That also means there is no
+         ;; <context-doc> instance to cross-reference.
+         (strings
+          (map (lambda (ns)
+                 (let ((cd (name-sym->context-doc ns (context-type-doc cd))))
+                   (if cd
+                       (ref-ify cd)
+                       (format "~a (alias only)" (symbol->string ns)))))
+               name-syms)))
+    (if (null? strings)
+        ""
+        (format
+         "This context also accepts commands for the following context(s): ~a.\n\n"
+         (human-listify strings)))))
+
+(define-method (accepts-string (cd <context-doc>))
+  (let* ((name-syms (sort (attr 'accepts cd) ly:symbol-ci<?))
+         (strings
+          (map (lambda (ns)
+                 (ref-ify (name-sym->context-doc ns (context-type-doc cd))))
+               name-syms)))
+    (if (null? strings)
+        "This context is a `bottom' context; it cannot contain other contexts."
+        (format "Context @code{~a} can contain\n~a.\n\n"
+                (symbol->string (name-sym cd))
+                (human-listify strings)))))
+
+
+;;; Output object creation (general)
+
+(define (group-by-function-result func lst)
+  "Partition LST into sublists of elements that yield the same value
+under FUNC, with that value prepended to each sublist."
+  (let ((plist '()))
+    (map (lambda (x)
+           (let ((key (func x)))
+             (set! plist
+                   (assoc-set! plist
+                               key
+                               (append (assoc-get key plist '())
+                                       (list x))))))
+         lst)
+    plist))
+
+(define (output-objects-creation-strings creator ood-list)
+  "Assemble a list of strings
+'This CREATOR creates the following [output object](s): ...',
+one for each output object type present in OOD-LIST."
+  (if (null? ood-list)
+      (list
+       (format "This ~a does not create any output objects.\n\n" creator))
+      (let* ((oods-by-type (group-by-function-result type-string
+                                                     ood-list)))
+        (map (lambda (ood-type-entry)
+               (format "This ~a creates the following ~a(s): ~a\n\n"
+                       creator
+                       (car ood-type-entry)
+                       (human-listify (map ref-ify (cdr ood-type-entry)))))
+             oods-by-type))))
+
+
+;;; Translator - output object relation
+
+(define-method (creations (td <translator-doc>))
+  "Return a list of <output-object-doc> instances."
+  ;; For historical reasons, the relevant key in the translator
+  ;; description is named grobs-created, no matter whether the
+  ;; translator actually is an engraver or something else.
+  (map name-sym->output-object-doc
+       (delete-duplicates
+        (sort (attr 'grobs-created td) ly:symbol-ci<?))))
+
+(define-method (creators (ood <output-object-doc>))
+  "Return a list of <translator-doc> instances."
+  (filter (lambda (td) (member ood (creations td)))
+          all-translator-docs-list))
+
+(define-method (creations-string (td <translator-doc>))
+  "Assemble 'This [translator] creates the following [object](s): ...' lines."
+  (string-join
+   (output-objects-creation-strings (type-string td) (creations td))))
+
+
+;;; Translator - music expression relation
+
+(define-method (accepts? music-types (td <translator-doc>))
+  (lset<= music-types (attr 'events-accepted td)))
+
+;; variant currently needed for music-doc-str in document-backend.scm
+;; and music-type-doc in document-music.scm
+(define (translator-accepts? music-types trans)
+  (accepts? music-types
+            (name-sym->translator-doc (ly:translator-name trans))))
+
+(define-method (accepts-string (td <translator-doc>))
+  (let ((accepted (attr 'events-accepted td)))
+    (if (null? accepted)
+        ""
+        (format "Music types accepted: ~a\n\n"
+                (human-listify
+                 (map ref-ify (sort (map symbol->string accepted)
+                                    ly:string-ci<?)))))))
+
+
+;;; Translator - Context relation
+
+(define-method (consists (cd <context-doc>))
+  "Return a list of <translator-doc> instances."
+  (map name-sym->translator-doc (sort (attr 'consists cd) ly:symbol-ci<?)))
+
+(define-method (consisting (td <translator-doc>))
+  "Return a list of <context-doc> instances."
+  (filter (lambda (cd) (member td (consists cd)))
+          all-context-docs-list))
+
+(define-method (consists-string (cd <context-doc>))
+  (let ((tds (consists cd)))
+    (if (null? tds)
+        ""
+        (format
+         "This context is built from the following translator(s):\n\n~a\n\n"
+         (description-list->texi (map translator-doc-embedded tds)
+                                 #t)))))
+
+(define-method (consisting-string (td <translator-doc>))
+  (let* ((context-docs (consisting td)))
+    (if (null? context-docs)
+        (format "@code{~a} is not part of any context.\n\n"
+                (node-name td))
+        (format "@code{~a} is part of the following context(s):\n\n~a\n\n"
+                (node-name td)
+                (human-listify (map ref-ify context-docs))))))
+
+
+;;; Translator - property relation
+
+(define (format-properties-list props)
+  (let ((description-list (map (lambda (x)
+                                 (property->texi 'translation x '()))
+                               (sort props ly:symbol-ci<?))))
+    (if (null? props)
+        ""
+        (description-list->texi description-list #t))))
+
+(define-method (read-properties-string (td <translator-doc>))
+  (let* ((props (attr 'properties-read td '())))
+    (if (null? props)
+        ""
+        (format "Properties (read):\n~a\n\n"
+                (format-properties-list props)))))
+
+(define-method (written-properties-string (td <translator-doc>))
+  (let* ((props (attr 'properties-written td '())))
+    (if (null? props)
+        ""
+        (format "Properties (written):\n~a\n\n" 
+                (format-properties-list props)))))
+
+
+;;; Context - output object relation
+
+(define-method (creations (cd <context-doc>))
+  "Return a list of <output-object-doc> instances."
+  (delete-duplicates
+   (sort (apply append (map creations (consists cd)))
+         (lambda (a b) (ly:string-ci<? (node-name a) (node-name b))))))
+
+(define-method (creations-string (cd <context-doc>))
+  "Assemble 'This context creates the following [object](s): ...' lines."
+  (string-join
+   (output-objects-creation-strings "context" (creations cd))))
+
+
+;;; Context - property relation
+
+(define-method (property-operation-string prop-op (ctd <context-type-doc>))
+  (let* ((tag (car prop-op))
+         (sym (cadr prop-op))  ; meaning of sym depends on tag
+         (args (cddr prop-op)))
+    (cond
+     ((equal? tag 'push)       ; sym is name symbol for related grob
+      (let ((oo-name-sym (cadr prop-op))
+            (value (car args))
+            (path (cdr args)))
+        (format "@item Set grob-property @code{~a} in ~a to ~a.\n"
+                (string-join (map symbol->string path) " ")
+                (ref-ify (name-sym->output-object-doc oo-name-sym))
+                (scm->texi value))))
+     ((equal? (object-property (cadr prop-op) 'is-grob?) #t) "")
+     ((equal? tag 'assign)
+      (let ((prop-name-sym (cadr prop-op)))
+        (format #f "@item Set translator property @code{~a} to ~a.\n"
+                (symbol->string prop-name-sym)
+                (scm->texi (car args))))))))
+
+(define-method (properties-set-string (cd <context-doc>))
+  (let* ((ctd (context-type-doc cd))
+         (prop-ops (attr 'property-ops cd '()))
+         (prop-op-items (map (lambda (prop-op)
+                               (property-operation-string prop-op ctd))
+                             prop-ops))
+         (prop-ops-strings (sort prop-op-items ly:string-ci<?)))
+    (if (null? prop-ops-strings)
+        ""
+        (format
+         (string-append "This context sets the following properties:\n\n"
+                        "@itemize @bullet\n~a@end itemize\n\n")
+         (string-join prop-ops-strings)))))
+
+
+;;; Assemble single translator documentation
+
+(define-method (short-doc-string (td <translator-doc>))
+  (string-append
+   (string-or (attr 'description td) "(not documented)")
+   "\n\n"
+   (accepts-string td)             ; "Music types accepted: ..."
+   (read-properties-string td)     ; "Properties (read) ..."
+   (written-properties-string td)  ; " Properties (written) ..."
+   ;; "This (translator) creates the following (object)(s): ..."
+   (creations-string td)))
+
+(define-method (doc-string (td <translator-doc>))
+  (string-append
+   (short-doc-string td)
+   ;; "(translator) is part of the following context(s): ..."
+   (consisting-string td)))
+
+(define-method (translator-doc-embedded (td <translator-doc>))
+  "Shortened translator description for embedding into context description."
+  (cons (format "@code{~a}" (ref-ify td))
+        (short-doc-string td)))
+
+
+;;; Assemble single context documentation
+
+(define-method (doc-string (cd <context-doc>))
+  (string-append
+   (string-or (attr 'description cd) "(not documented)")
+   "\n\n"
+   ;; "This context also accepts commands for the following context(s): ..."
+   (aliases-string cd)
+   ;; "Corresponding [layout/midi] context: ..."
+   (string-join (corresponding-context-strings cd))
+   ;; "This context creates the following [output object](s): ..."
+   (creations-string cd)
+   ;; "This context sets the following properties: ..."
+   (properties-set-string cd)
+   ;; "Context CD can contain ..."
+   (accepts-string cd)
+   ;; "This context is built from the following translators: ..."
+   (consists-string cd)))
+
+
+;;; Create documentation node texts
+
+(map (lambda (x) (set! (node-text x) (doc-string x)))
+     (append all-context-docs-list
+             all-translator-docs-list))

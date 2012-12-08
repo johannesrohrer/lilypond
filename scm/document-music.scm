@@ -56,7 +56,7 @@
 				 (map ly:translator-name
 				      (filter
 				       (lambda (x)
-					 (translator-accepts-music-type? (car entry) x))
+					 (translator-accepts? (car entry) x))
 				       all-translators-list)))))))
     (make <texi-node>
       #:name (symbol->string (car entry))
@@ -98,7 +98,7 @@
 				     (map ly:translator-name
 					  (filter
 					   (lambda (x)
-					     (translator-accepts-music-types? classes x))
+					     (translator-accepts? classes x))
 					   all-translators-list)))))
 			  ""))
 	 (event-texi (if classes

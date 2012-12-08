@@ -132,7 +132,8 @@ node."
 				    (ly:error (_ "pair expected in doc ~s") name)))
 			      ifaces)
 			 ly:string-ci<?)))
-	 (engravers (translators-making-output-object name))
+	 (engravers (map translator
+                         (creators (name-sym->output-object-doc name))))
 	 (engraver-names (map symbol->string
 			      (map ly:translator-name engravers)))
 	 (engraver-list (human-listify

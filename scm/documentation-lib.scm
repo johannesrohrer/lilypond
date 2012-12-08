@@ -158,10 +158,22 @@ string-to-use).  If QUOTE? is #t, embed table in a @quotation environment."
 (define (interface-name name)
   name)
 
-(define (ref-ify x)
+(define (string-or . args)
+  "Return the first argument that is a non-empty string, or \"\" if
+none is found."
+  (if (null? args)
+      ""
+      (let ((str (car args)))
+        (if (and (string? str) (not (string-null? str)))
+            str
+            (apply string-or (cdr args))))))
+
+(define-method (ref-ify (x <string>))
   "Return @ref{X}.  If mapping ref-ify to a list that needs to be sorted,
    sort the list first."
   (string-append "@ref{" x "}"))
+
+(define-method (ref-ify (tn <texi-node>)) (ref-ify (node-name tn)))
 
 (define (human-listify lst)
   "Produce a textual enumeration from LST, a list of strings"
