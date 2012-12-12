@@ -18,7 +18,8 @@
 
 (use-modules (oop goops)
 	     (srfi srfi-13)
-	     (srfi srfi-1))
+	     (srfi srfi-1)
+             (ice-9 regex))
 
 (define-class <texi-node> ()
   (appendix #:init-value #f #:accessor appendix? #:init-keyword #:appendix)
@@ -167,6 +168,22 @@ none is found."
         (if (and (string? str) (not (string-null? str)))
             str
             (apply string-or (cdr args))))))
+
+(define (describe-list . args)
+  "describe-list FSTR0 [ FSTR1 ... FSTRn ] LST [ PLACEHOLDER ] returns
+one FSTRm with the substring PLACEHOLDER (default \"%LIST\") replaced
+with a textual enumeration of LST, a list of strings. m is chosen
+according to the number of arguments of LST."
+  (let* ((fstrs (take-while string? args))
+         (restargs (drop-while string? args))
+         (lst (car restargs))
+         (placeholder (if (null? (cdr restargs))
+                          "%LIST"
+                          (cdar restargs)))
+         (m (min (- (length fstrs) 1) (length lst)))
+         (fstr (list-ref fstrs m)))
+    (regexp-substitute/global #f placeholder fstr
+                              'pre (human-listify lst) 'post)))
 
 (define-method (ref-ify (x <string>))
   "Return @ref{X}.  If mapping ref-ify to a list that needs to be sorted,

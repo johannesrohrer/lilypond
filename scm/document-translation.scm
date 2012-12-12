@@ -35,7 +35,7 @@
    #:init-keyword #:context-type-doc
    #:getter context-type-doc)
   ;; context record in the form (name-sym . info-alist) as returned as
-  ;; part of (ly.output-description OUTPUT-DEF). info-alist contains
+  ;; part of (ly:output-description OUTPUT-DEF). info-alist contains
   ;; most of the interesting data; use the 'attr' method defined below
   ;; to access it.
   (context-desc #:init-keyword #:context-desc #:getter context-desc))
@@ -112,8 +112,9 @@
 ;;; Translator types (engravers, performers, ...)
 ;;
 ;; In contrast to context types, this classification is purely
-;; cosmetic. Specifically, associating a translator with contexts of
-;; the right type does not depend on it.
+;; cosmetic, since all translators have unique names. Specifically,
+;; associating a translator with contexts of the right type does not
+;; depend on it.
 
 (define-class <translator-type-doc> (<texi-node>)
   (type-string #:init-keyword #:type-string #:getter type-string)
@@ -430,11 +431,11 @@ for assembling MIDI output. They are part of @ref{MIDI contexts}.")
                        (ref-ify cd)
                        (format "~a (alias only)" (symbol->string ns)))))
                name-syms)))
-    (if (null? strings)
-        ""
-        (format
-         "This context also accepts commands for the following context(s): ~a.\n\n"
-         (human-listify strings)))))
+    (describe-list
+     ""
+     "This context also accepts commands for the following context: %LIST.\n\n"
+     "This context also accepts commands for the following contexts: %LIST.\n\n"
+     strings)))
 
 (define-method (accepts-string (cd <context-doc>))
   (let* ((name-syms (sort (attr 'accepts cd) ly:symbol-ci<?))
@@ -442,11 +443,11 @@ for assembling MIDI output. They are part of @ref{MIDI contexts}.")
           (map (lambda (ns)
                  (ref-ify (name-sym->context-doc ns (context-type-doc cd))))
                name-syms)))
-    (if (null? strings)
-        "This context is a `bottom' context; it cannot contain other contexts."
-        (format "Context @code{~a} can contain\n~a.\n\n"
-                (symbol->string (name-sym cd))
-                (human-listify strings)))))
+    (describe-list
+     "This context is a `bottom' context; it cannot contain other contexts.\n\n"
+     (format "Context @code{~a} can contain\n%LIST.\n\n"
+             (symbol->string (name-sym cd)))
+     strings)))
 
 
 ;;; Output object creation (general)
@@ -467,7 +468,7 @@ under FUNC, with that value prepended to each sublist."
 
 (define (output-objects-creation-strings creator ood-list)
   "Assemble a list of strings
-'This CREATOR creates the following [output object](s): ...',
+'This CREATOR creates the following [output object(s)]: ...',
 one for each output object type present in OOD-LIST."
   (if (null? ood-list)
       (list
@@ -475,10 +476,15 @@ one for each output object type present in OOD-LIST."
       (let* ((oods-by-type (group-by-function-result type-string
                                                      ood-list)))
         (map (lambda (ood-type-entry)
-               (format "This ~a creates the following ~a(s): ~a\n\n"
-                       creator
-                       (car ood-type-entry)
-                       (human-listify (map ref-ify (cdr ood-type-entry)))))
+               (describe-list
+                ""
+                (format "This ~a creates the following ~a: %LIST.\n\n"
+                        creator
+                        (car ood-type-entry))
+                (format "This ~a creates the following ~as:\n%LIST\n\n"
+                        creator
+                        (car ood-type-entry))
+                (map ref-ify (cdr ood-type-entry))))
              oods-by-type))))
 
 
@@ -499,7 +505,7 @@ one for each output object type present in OOD-LIST."
           all-translator-docs-list))
 
 (define-method (creations-string (td <translator-doc>))
-  "Assemble 'This [translator] creates the following [object](s): ...' lines."
+  "Assemble 'This [translator] creates the following [object(s)]: ...' lines."
   (string-join
    (output-objects-creation-strings (type-string td) (creations td))))
 
@@ -517,12 +523,11 @@ one for each output object type present in OOD-LIST."
 
 (define-method (accepts-string (td <translator-doc>))
   (let ((accepted (attr 'events-accepted td)))
-    (if (null? accepted)
-        ""
-        (format "Music types accepted: ~a\n\n"
-                (human-listify
-                 (map ref-ify (sort (map symbol->string accepted)
-                                    ly:string-ci<?)))))))
+    (describe-list
+     ""
+     "Music types accepted: %LIST.\n\n"
+     (map ref-ify (sort (map symbol->string accepted)
+                        ly:string-ci<?)))))
 
 
 ;;; Translator - Context relation
@@ -547,12 +552,14 @@ one for each output object type present in OOD-LIST."
 
 (define-method (consisting-string (td <translator-doc>))
   (let* ((context-docs (consisting td)))
-    (if (null? context-docs)
-        (format "@code{~a} is not part of any context.\n\n"
-                (node-name td))
-        (format "@code{~a} is part of the following context(s):\n\n~a\n\n"
-                (node-name td)
-                (human-listify (map ref-ify context-docs))))))
+    (describe-list
+     (format "@code{~a} is not part of any context.\n\n"
+             (node-name td))
+     (format "@code{~a} is part of the context %LIST.\n\n"
+             (node-name td))
+     (format "@code{~a} is part of the following contexts:\n%LIST\n\n"
+             (node-name td))
+     (map ref-ify context-docs))))
 
 
 ;;; Translator - property relation
@@ -589,7 +596,7 @@ one for each output object type present in OOD-LIST."
          (lambda (a b) (ly:string-ci<? (node-name a) (node-name b))))))
 
 (define-method (creations-string (cd <context-doc>))
-  "Assemble 'This context creates the following [object](s): ...' lines."
+  "Assemble 'This context creates the following [object(s)]: ...' lines."
   (string-join
    (output-objects-creation-strings "context" (creations cd))))
 
@@ -640,13 +647,13 @@ one for each output object type present in OOD-LIST."
    (accepts-string td)             ; "Music types accepted: ..."
    (read-properties-string td)     ; "Properties (read) ..."
    (written-properties-string td)  ; " Properties (written) ..."
-   ;; "This (translator) creates the following (object)(s): ..."
+   ;; "This [translator] creates the following [object(s)]: ..."
    (creations-string td)))
 
 (define-method (doc-string (td <translator-doc>))
   (string-append
    (short-doc-string td)
-   ;; "(translator) is part of the following context(s): ..."
+   ;; "[translator] is part of the following context(s): ..."
    (consisting-string td)))
 
 (define-method (translator-doc-embedded (td <translator-doc>))
@@ -665,7 +672,7 @@ one for each output object type present in OOD-LIST."
    (aliases-string cd)
    ;; "Corresponding [layout/midi] context: ..."
    (string-join (corresponding-context-strings cd))
-   ;; "This context creates the following [output object](s): ..."
+   ;; "This context creates the following [output object(s)]: ..."
    (creations-string cd)
    ;; "This context sets the following properties: ..."
    (properties-set-string cd)
