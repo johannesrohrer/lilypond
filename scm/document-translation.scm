@@ -94,7 +94,7 @@
    #:getter translator-type-doc))
 
 (define-method (attr attribute (td <translator-doc>) not-found-result)
-  (assoc-get attribute 
+  (assoc-get attribute
              (ly:translator-description (translator td))
              not-found-result))
 
@@ -128,6 +128,10 @@
                  #:translator translator
                  #:translator-type-doc ttd))
              (translators ttd))))
+
+(define-method (type-string (lst <list>) (fallback <string>))
+  (let ((types (delete-duplicates (map type-string lst))))
+    (if (equal? (length types) 1) (car types) fallback)))
 
 
 ;;; Output objects, e.g. grobs
@@ -543,12 +547,16 @@ one for each output object type present in OOD-LIST."
 
 (define-method (consists-string (cd <context-doc>))
   (let ((tds (consists cd)))
-    (if (null? tds)
-        ""
-        (format
-         "This context is built from the following translator(s):\n\n~a\n\n"
-         (description-list->texi (map translator-doc-embedded tds)
-                                 #t)))))
+    (string-append
+     (describe-list
+      ""
+      (format "This context is built from the following ~a:\n\n%DESC\n\n"
+              (type-string tds "translator"))
+      (format "This context is built from the following ~as:\n\n%DESC\n\n"
+              (type-string tds "translator"))
+      (map translator-doc-embedded tds)
+      "%DESC"
+      (lambda (lst) (description-list->texi lst #t))))))
 
 (define-method (consisting-string (td <translator-doc>))
   (let* ((context-docs (consisting td)))
@@ -583,7 +591,7 @@ one for each output object type present in OOD-LIST."
   (let* ((props (attr 'properties-written td '())))
     (if (null? props)
         ""
-        (format "Properties (written):\n~a\n\n" 
+        (format "Properties (written):\n~a\n\n"
                 (format-properties-list props)))))
 
 

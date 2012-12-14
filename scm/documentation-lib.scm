@@ -170,20 +170,27 @@ none is found."
             (apply string-or (cdr args))))))
 
 (define (describe-list . args)
-  "describe-list FSTR0 [ FSTR1 ... FSTRn ] LST [ PLACEHOLDER ] returns
-one FSTRm with the substring PLACEHOLDER (default \"%LIST\") replaced
-with a textual enumeration of LST, a list of strings. m is chosen
-according to the number of arguments of LST."
+  "describe-list FSTR0 [ FSTR1 ... FSTRn ] LST [ PLACEHOLDER [ LST->STR ]]
+
+Return one FSTRm with the substring PLACEHOLDER (default \"%LIST\")
+replaced with a textual enumeration of LST. m is chosen according to
+the number of arguments of LST. The function LST->STR, which must take
+a single list argument, is used to turn LST into a single string; it
+defaults to human-listify."
   (let* ((fstrs (take-while string? args))
          (restargs (drop-while string? args))
          (lst (car restargs))
          (placeholder (if (null? (cdr restargs))
                           "%LIST"
-                          (cdar restargs)))
+                          (cadr restargs)))
+         (lst->str (if (or (null? (cdr restargs))
+                           (null? (cddr restargs)))
+                       human-listify
+                       (caddr restargs)))
          (m (min (- (length fstrs) 1) (length lst)))
          (fstr (list-ref fstrs m)))
     (regexp-substitute/global #f placeholder fstr
-                              'pre (human-listify lst) 'post)))
+                              'pre (lst->str lst) 'post)))
 
 (define-method (ref-ify (x <string>))
   "Return @ref{X}.  If mapping ref-ify to a list that needs to be sorted,
