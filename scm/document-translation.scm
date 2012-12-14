@@ -150,7 +150,7 @@
 
 (define-method (initialize (ood <output-object-doc>) initargs)
   (next-method)
-  (set! (node-name ood) (symbol->string (car (object-record ood)))))
+  (set! (node-name ood) (symbol->string (name-sym ood))))
 
 (define-class <undocumented-output-object-doc> (<output-object-doc>)
   (type #:init-value #f)
@@ -400,7 +400,7 @@ for assembling MIDI output. They are part of @ref{MIDI contexts}.")
 
 (define (name-sym->output-object-doc name-sym)
   (or (hash-ref name-sym->output-object-doc-table name-sym #f)
-      (make <undocumented-output-object> #:name-sym name-sym)))
+      (make <undocumented-output-object-doc> #:name-sym name-sym)))
 
 
 
