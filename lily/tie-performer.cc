@@ -161,7 +161,11 @@ Tie_performer::stop_translation_timestep ()
 
 ADD_TRANSLATOR (Tie_performer,
                 /* doc */
-                "Generate ties between note heads of equal pitch.",
+                "Merge tied audio notes of equal pitch.\n\n"
+                "Also, mark the presence of ties for "
+                "@code{Lyric_combine_music_iterator} to consider "
+                "when distributing lyrics syllables over music; see "
+                "@ruser{Multiple notes to one syllable}.",
 
                 /* create */
                 "",

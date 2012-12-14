@@ -172,10 +172,11 @@ Piano_pedal_performer::listen_una_corda (Stream_event *r)
 
 ADD_TRANSLATOR (Piano_pedal_performer,
                 /* doc */
-                "",
+                "Perform sustain, sostenuto and una-corda pedal "
+                "commands on a MIDI instrument.",
 
                 /* create */
-                "",
+                "AudioPianoPedal",
 
                 /* read */
                 "",

@@ -83,13 +83,14 @@ Time_signature_performer::stop_translation_timestep ()
 
 ADD_TRANSLATOR (Time_signature_performer,
                 /* doc */
-                "",
+                "Create a MIDI time signature marker whenever "
+                "@code{timeSignatureFraction} changes.",
 
                 /* create */
-                "",
+                "AudioTimeSignature",
 
                 /* read */
-                "",
+                "timeSignatureFraction",
 
                 /* write */
                 ""

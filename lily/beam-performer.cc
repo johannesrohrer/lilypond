@@ -94,15 +94,18 @@ Beam_performer::listen_beam (Stream_event *ev)
 
 ADD_TRANSLATOR (Beam_performer,
                 /* doc */
-                "",
+                "Mark the presence of manual beams between notes. "
+                "@code{Lyric_combine_music_iterator} can account for "
+                "this when distributing lyrics syllables over music.\n\n"
+                "See also @ruser{Multiple notes to one syllable}.",
 
                 /* create */
                 "",
 
                 /* read */
-                "",
+                "autoBeaming ",
 
                 /* write */
-                ""
+                "beamMelismaBusy "
                );
 

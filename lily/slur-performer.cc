@@ -97,7 +97,10 @@ Slur_performer::listen_slur (Stream_event *ev)
 
 ADD_TRANSLATOR (Slur_performer,
                 /* doc */
-                "",
+                "Mark the presence of slurs over notes. "
+                "@code{Lyric_combine_music_iterator} can account for "
+                "this when distributing lyrics syllables over music.\n\n"
+                "See also @ruser{Multiple notes to one syllable}.",
 
                 /* create */
                 "",
@@ -106,5 +109,5 @@ ADD_TRANSLATOR (Slur_performer,
                 "",
 
                 /* write */
-                ""
+                "slurMelismaBusy "
                );

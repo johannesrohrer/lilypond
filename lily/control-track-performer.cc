@@ -64,10 +64,16 @@ Control_track_performer::initialize ()
 
 ADD_TRANSLATOR (Control_track_performer,
                 /* doc */
-                "",
+                "Assemble a MIDI control track containing tempo and "
+                "time signature change events, annotated with "
+                "'creator: GNU LilyPond (version)' text events.\n\n"
+                "Acknowledge @code{AudioTempo} and "
+                "@code{AudioTimeSignature} objects created by other "
+                "performers.",
 
                 /* create */
-                "",
+                "AudioText "
+                "AudioStaff ",
 
                 /* read */
                 "",

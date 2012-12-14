@@ -222,10 +222,21 @@ Dynamic_performer::listen_absolute_dynamic (Stream_event *r)
 
 ADD_TRANSLATOR (Dynamic_performer,
                 /* doc */
-                "",
+                "Control MIDI dynamics by setting note velocities.\n\n"
+                "Based on dynamics markings, determine an overall "
+                "a-priori volume as a number between 0 and 1. Then "
+                "optionally equalize it into a more narrow volume "
+                "range, which can be set globally "
+                "(@code{midiMinimumVolume}, @code{midiMaximumVolume}) "
+                "or specified per MIDI instrument "
+                "(@code{instrumentEqualizer}).\n\n"
+                "See also @ruser{Controlling MIDI dynamics}, and "
+                "@file{scm/midi.scm} (@rlearning{Other sources of "
+                "information}) for default settings.",
 
                 /* create */
-                "",
+                "AudioSpanDynamic "
+                "AudioDynamic ",
 
                 /* read */
                 "dynamicAbsoluteVolumeFunction "

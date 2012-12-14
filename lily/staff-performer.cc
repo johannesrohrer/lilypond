@@ -80,13 +80,40 @@ int Staff_performer::staff_performer_count_ = 0;
 
 ADD_TRANSLATOR (Staff_performer,
                 /* doc */
-                "",
+                "Collect audio items created by other performers into "
+                "one or several MIDI tracks, all assigned to one MIDI "
+                "instrument.\n\n"
+                "Create one track for each @code{Voice} context "
+                "encountered and label it "
+                "@samp{<Staff name>:<Voice name>}.\n\n"
+                "Choose a MIDI playback channel for each item as "
+                "follows, depending on the value of the "
+                "@code{midiChannelMapping} property:\n\n"
+                "@table @code\n"
+                "@item instrument\n"
+                "(default) Use one single channel, across all "
+                "@code{Staff} contexts with this setting, for all "
+                "events that play on the same MIDI instrument.\n\n"
+                "@item staff\n"
+                "Choose one MIDI channel for all events from the "
+                "present @code{Staff}, on all generated tracks.\n\n"
+                "@item voice\n"
+                "Assign one MIDI channel to each @code{Voice} context, "
+                "i.e. to each generated track.\n"
+                "@end table\n\n"
+                "Skip the percussion channel number 10 while assigning. "
+                "Warn and wrap around modulo 16 if running out of "
+                "unused channels.",
 
                 /* create */
-                "",
+                "AudioInstrument "
+                "AudioStaff "
+                "AudioText ",
 
                 /* read */
-                "",
+                "midiMergeUnisons "
+                "midiChannelMapping "
+                "midiInstrument ",
 
                 /* write */
                 "");

@@ -76,10 +76,10 @@ Lyric_performer::listen_lyric (Stream_event *event)
 
 ADD_TRANSLATOR (Lyric_performer,
                 /* doc */
-                "",
+                "Create lyrics text MIDI events.",
 
                 /* create */
-                "",
+                "AudioText ",
 
                 /* read */
                 "",

@@ -104,10 +104,10 @@ ADD_TRANSLATOR (Drum_note_performer,
                 "Play drum notes.",
 
                 /* create */
-                "",
+                "AudioNote ",
 
                 /* read */
-                "",
+                "drumPitchTable ",
 
                 /* write */
                 ""

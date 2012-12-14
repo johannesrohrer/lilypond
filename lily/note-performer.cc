@@ -123,13 +123,13 @@ Note_performer::listen_note (Stream_event *ev)
 
 ADD_TRANSLATOR (Note_performer,
                 /* doc */
-                "",
+                "Play pitched notes on a MIDI instrument.",
 
                 /* create */
-                "",
+                "AudioNote ",
 
                 /* read */
-                "",
+                "instrumentTransposition ",
 
                 /* write */
                 ""

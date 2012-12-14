@@ -87,10 +87,11 @@ Tempo_performer::stop_translation_timestep ()
 
 ADD_TRANSLATOR (Tempo_performer,
                 /* doc */
-                "",
+                "Create a MIDI tempo change marker whenever "
+                "@code{tempoWholesPerMinute} changes.",
 
                 /* create */
-                "",
+                "AudioTempo ",
 
                 /* read */
                 "tempoWholesPerMinute ",
