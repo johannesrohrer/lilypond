@@ -216,6 +216,9 @@ defaults to human-listify."
    (symbol->string (car a))
    (symbol->string (car b))))
 
+(define (name-sym-ci<? a b)
+  (ly:symbol-ci<? (name-sym a) (name-sym b)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; property  stuff.
 

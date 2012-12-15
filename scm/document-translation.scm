@@ -244,13 +244,16 @@ defined in @code{ly/performer-init.ly}"
   (make <texi-node>
     #:name "Translators"
     #:desc "Engravers, performers and other translators."
-    #:text "Translators are part of contexts. They @emph{accept} (or
-@emph{listen to}) some types of music expressions delivered by
-iterators as @emph{stream events}, process them and create various
-types of output objects. They may also @emph{acknowledge} output
-objects produced by other translators.
+    #:text "Translators plug into a stream of music event objects
+delivered by iterators. They selectively @emph{accept} (or
+@emph{listen to}) some of them based on their assigned @ref{Music
+classes}, process them and create various types of output objects.
 
-@emph{Context properties} control the behaviour of translators."
+They may also @emph{acknowledge} and modify output objects produced by
+other translators.
+
+Translators are part of contexts. @emph{Context properties} can
+control their behaviour."
     #:children
     (list
      (make <translator-type-doc>
@@ -514,24 +517,26 @@ one for each output object type present in OOD-LIST."
    (output-objects-creation-strings (type-string td) (creations td))))
 
 
-;;; Translator - music expression relation
+;;; Translator - music class relation
 
-(define-method (accepts? music-types (td <translator-doc>))
-  (lset<= music-types (attr 'events-accepted td)))
+;; We have no <event-class-doc> class yet, so for now these entities
+;; are referenced by name symbol only.
 
-;; variant currently needed for music-doc-str in document-backend.scm
-;; and music-type-doc in document-music.scm
-(define (translator-accepts? music-types trans)
-  (accepts? music-types
-            (name-sym->translator-doc (ly:translator-name trans))))
+(define-method (accepts (td <translator-doc>))
+  "Return list of name symbols of music classes accepted by td."
+  (sort (attr 'events-accepted td) ly:symbol-ci<?))
+
+(define (accepting music-class)
+  "Return a list <translator-doc> instances."
+  (filter (lambda (td) (member music-class (accepts td)))
+          all-translator-docs-list))
 
 (define-method (accepts-string (td <translator-doc>))
   (let ((accepted (attr 'events-accepted td)))
     (describe-list
      ""
-     "Music types accepted: %LIST.\n\n"
-     (map ref-ify (sort (map symbol->string accepted)
-                        ly:string-ci<?)))))
+     "Music classes accepted: %LIST.\n\n"
+     (map (lambda (ev) (ref-ify (symbol->string ev))) (accepts td)))))
 
 
 ;;; Translator - Context relation
@@ -652,7 +657,7 @@ one for each output object type present in OOD-LIST."
   (string-append
    (string-or (attr 'description td) "(not documented)")
    "\n\n"
-   (accepts-string td)             ; "Music types accepted: ..."
+   (accepts-string td)             ; "Music classes accepted: ..."
    (read-properties-string td)     ; "Properties (read) ..."
    (written-properties-string td)  ; " Properties (written) ..."
    ;; "This [translator] creates the following [object(s)]: ..."

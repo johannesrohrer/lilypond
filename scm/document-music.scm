@@ -50,74 +50,54 @@
 	""))
 
 (define (music-type-doc entry)
-  (let* ((accept-list (human-listify
-		       (map ref-ify
-			    (map symbol->string
-				 (map ly:translator-name
-				      (filter
-				       (lambda (x)
-					 (translator-accepts? (car entry) x))
-				       all-translators-list)))))))
+  (let ((name-sym (car entry))
+        (events (sort (cdr entry) ly:symbol-ci<?)))
     (make <texi-node>
-      #:name (symbol->string (car entry))
+      #:name (symbol->string name-sym)
       #:text
       (string-append
-       "\nMusic event type @code{"
-       (symbol->string (car entry))
-       "} is in music objects of type "
-       (human-listify
-	(map ref-ify (sort (map symbol->string (cdr entry))
-	                   ly:string-ci<?)))
-       "."
-
-       "\n\n"
-       (if (equal? accept-list "none")
-	   "Not accepted by any engraver or performer"
-	   (string-append
-	    "Accepted by: "
-	    accept-list))
-       "."))))
+       (describe-list
+        "\nThis event class is empty.\n\n" ; should not happen?
+        "\nThis event class is assigned to music expressions of type %LIST.\n\n"
+        (map (lambda (ev) (ref-ify (symbol->string ev))) events))
+       (describe-list
+        "Not accepted by any translator."
+        "Accepted by: %LIST."
+        (map ref-ify (accepting name-sym)))))))
 
 (define (music-types-doc)
   (make <texi-node>
     #:name "Music classes"
+    #:desc "Groups of related music events."
+    #:text "Music classes group related music events.
+
+They provide the interface to the translation stage: @ref{Translators}
+accept or ignore events based on the classes assigned to them."
     #:children
     (map music-type-doc
-	 (sort
-	  (hash-table->alist music-types->names) ly:alist-ci<?))))
+         (sort
+          (hash-table->alist music-types->names) ly:alist-ci<?))))
 
 (define (music-doc-str obj)
   (let* ((namesym  (car obj))
-	 (props (cdr obj))
-	 (class (ly:camel-case->lisp-identifier namesym))
-	 (classes (ly:make-event-class doc-context class))
-	 (accept-list (if classes
-			  (human-listify
-			   (map ref-ify
-				(map symbol->string
-				     (map ly:translator-name
-					  (filter
-					   (lambda (x)
-					     (translator-accepts? classes x))
-					   all-translators-list)))))
-			  ""))
-	 (event-texi (if classes
-			 (string-append
-			  "\n\nEvent classes:\n"
-			  (human-listify
-			   (map ref-ify (sort (map symbol->string classes)
-					      ly:string-ci<?)))
-			  "."
-
-			  "\n\n"
-			  (if (equal? accept-list "none")
-			      "Not accepted by any engraver or performer"
-			      (string-append
-			       "Accepted by: "
-			       accept-list))
-			  ".")
-			 "")))
-
+         (props (cdr obj))
+         (class (ly:camel-case->lisp-identifier namesym))
+         (classes (ly:make-event-class doc-context class))
+         (acceptors (delete-duplicates
+                     (sort (apply append (map accepting classes))
+                           name-sym-ci<?)))
+         (event-texi (if (null? classes)
+                         ""
+                         (string-append
+                          (format
+                           "\n\nEvent classes:\n~a.\n\n"
+                           (human-listify
+                            (map ref-ify (sort (map symbol->string classes)
+                                               ly:string-ci<?))))
+                          (describe-list
+                           "Not accepted by any translator."
+                           "Hence accepted by %LIST."
+                           (map ref-ify acceptors))))))
     (string-append
      (object-property namesym 'music-description)
      event-texi
