@@ -52,4 +52,4 @@
       #:text
       (apply string-append sfdocs))))
 
-;; (dump-node (all-scheme-functions-doc)  (current-output-port) 0 )
+;;(texi-dump (all-scheme-functions-doc) (current-output-port))

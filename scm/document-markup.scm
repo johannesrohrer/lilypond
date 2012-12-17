@@ -98,20 +98,25 @@
 (define (markup-doc-node)
   (make <texi-node>
     #:appendix #t
+    #:root-level 2
     #:name "Text markup commands"
     #:desc ""
-    #:text "The following commands can all be used inside @code{\\markup @{ @}}."
-    #:children (let* (;; when a new category is defined, update `ordered-categories'
-                      (ordered-categories '(font align graphic music instrument-specific-markup other))
-                      (raw-categories (hash-fold (lambda (category functions categories)
-                                                   (cons category categories))
-                                                 (list)
-                                                 markup-functions-by-category))
-                      (categories (append ordered-categories
-                                          (filter (lambda (cat)
-                                                    (not (memq cat ordered-categories)))
-                                                  raw-categories))))
-                 (map markup-category-doc-node categories))))
+    #:text
+    "The following commands can all be used inside @code{\\markup @{ @}}."
+    #:children
+    (let* (;; when a new category is defined, update `ordered-categories'
+           (ordered-categories
+            '(font align graphic music instrument-specific-markup other))
+           (raw-categories
+            (hash-fold (lambda (category functions categories)
+                         (cons category categories))
+                       (list)
+                       markup-functions-by-category))
+           (categories (append ordered-categories
+                               (filter (lambda (cat)
+                                         (not (memq cat ordered-categories)))
+                                       raw-categories))))
+      (map markup-category-doc-node categories))))
 
 (define (markup-list-doc-string)
   (string-append

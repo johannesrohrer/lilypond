@@ -38,7 +38,7 @@
   ;; part of (ly:output-description OUTPUT-DEF). info-alist contains
   ;; most of the interesting data; use the 'attr' method defined below
   ;; to access it.
-  (context-desc #:init-keyword #:context-desc #:getter context-desc))
+  (context-desc #:init-keyword #:context-desc))
 
 (define-method (attr attribute (context-doc <context-doc>) not-found-result)
   (assoc-get attribute
@@ -60,6 +60,23 @@
    (string-append (symbol->string (name-sym cd))
                   (node-suffix (context-type-doc cd)))))
 
+;; With 'Timing', there exists at least one 'context' that appears as
+;; an alias, but is not a true context documented in the output
+;; description. In such cases, create placeholder documentation
+;; objects.
+
+(define-class <undocumented-context-doc> (<context-doc>)
+  (context-desc #:init-value #f)
+  (node-suffix #:init-value "" #:init-keyword #:node-suffix #:getter node-suffix)
+  (name-sym #:init-keyword #:name-sym #:getter name-sym))
+
+(define-method (initialize (ucd <undocumented-context-doc>) initargs)
+  (next-method)
+  (set! (node-name ucd) (string-append (node-name ucd) (node-suffix ucd))))
+
+(define-method (node-ref (ucd <undocumented-context-doc>))
+  (node-name ucd)) ; no cross-reference
+
 
 ;;; Context types (layout, MIDI)
 
@@ -80,7 +97,8 @@
      (map (lambda (context-desc)
             (make <context-doc>
               #:context-type-doc ctd
-              #:context-desc context-desc))
+              #:context-desc context-desc
+              #:numbered #f))
           context-descs))))
 
 
@@ -126,7 +144,8 @@
         (map (lambda (translator)
                (make <translator-doc>
                  #:translator translator
-                 #:translator-type-doc ttd))
+                 #:translator-type-doc ttd
+                 #:numbered #f))
              (translators ttd))))
 
 (define-method (type-string (lst <list>) (fallback <string>))
@@ -158,7 +177,7 @@
   (name-sym #:init-keyword #:name-sym #:getter name-sym)
   (type-string #:init-value "undocumented output object" #:getter type-string))
 
-(define-method (ref-ify (uoo <undocumented-output-object-doc>))
+(define-method (node-ref (uoo <undocumented-output-object-doc>))
   (node-name uoo)) ; no cross-reference for undocumented objects
 
 
@@ -191,7 +210,7 @@
     (list
      (make <context-type-doc>
        #:output-def $defaultlayout
-       #:type-string "layout-context"
+       #:type-string "layout context"
        #:name "Layout contexts"
        #:desc "Contexts for graphical output"
        #:text "Layout contexts are built from
@@ -358,6 +377,11 @@ for assembling MIDI output. They are part of @ref{MIDI contexts}.")
 
 ;;; Contexts
 
+;; Since we document contexts from different output definitions
+;; separately, name symbols alone are not sufficient to identify a
+;; context uniquely. To disambiguate, providing the corresponding
+;; <context-type-doc> instance.
+
 (define all-context-docs-list
   (apply append
          (map node-children (node-children all-context-types-doc))))
@@ -422,39 +446,45 @@ for assembling MIDI output. They are part of @ref{MIDI contexts}.")
     (map (lambda (cd)
            (format "Corresponding ~a: ~a.\n\n"
                    (type-string cd)
-                   (ref-ify cd)))
+                   (node-ref cd)))
          all-relevant)))
 
+(define-method (aliases (cd <context-doc>))
+  "Return a list of <context-doc> instances.
+
+With 'Timing', there exists at least one 'context' that appears as an
+alias, but is not a true context documented in the output
+description. For such cases, create <undocumented-context-doc>
+instances."
+  (let* ((name-syms (sort (attr 'aliases cd) ly:symbol-ci<?)))
+    (map (lambda (ns)
+           (or (name-sym->context-doc ns (context-type-doc cd))
+               (make <undocumented-context-doc>
+                 #:name-sym ns
+                 #:node-suffix " (alias only)"
+                 #:context-type-doc (context-type-doc cd))))
+         name-syms)))
+
 (define-method (aliases-string (cd <context-doc>))
-  (let* ((name-syms (sort (attr 'aliases cd) ly:symbol-ci<?))
-         ;; With 'Timing', there exists at least one "context" that
-         ;; appears as an alias, but is not a true context documented
-         ;; in the output description. That also means there is no
-         ;; <context-doc> instance to cross-reference.
-         (strings
-          (map (lambda (ns)
-                 (let ((cd (name-sym->context-doc ns (context-type-doc cd))))
-                   (if cd
-                       (ref-ify cd)
-                       (format "~a (alias only)" (symbol->string ns)))))
-               name-syms)))
+  (let* ((strings (map node-ref (aliases cd))))
     (describe-list
      ""
      "This context also accepts commands for the following context: %LIST.\n\n"
      "This context also accepts commands for the following contexts: %LIST.\n\n"
      strings)))
 
+(define-method (accepts (cd <context-doc>))
+  (let* ((name-syms (sort (attr 'accepts cd) ly:symbol-ci<?)))
+    (map (lambda (ns)
+           (name-sym->context-doc ns (context-type-doc cd)))
+         name-syms)))
+
 (define-method (accepts-string (cd <context-doc>))
-  (let* ((name-syms (sort (attr 'accepts cd) ly:symbol-ci<?))
-         (strings
-          (map (lambda (ns)
-                 (ref-ify (name-sym->context-doc ns (context-type-doc cd))))
-               name-syms)))
-    (describe-list
-     "This context is a `bottom' context; it cannot contain other contexts.\n\n"
-     (format "Context @code{~a} can contain\n%LIST.\n\n"
-             (symbol->string (name-sym cd)))
-     strings)))
+  (describe-list
+   "This context is a `bottom' context; it cannot contain other contexts.\n\n"
+   (format "Context @code{~a} can contain\n%LIST.\n\n"
+           (symbol->string (name-sym cd)))
+   (map node-ref (accepts cd))))
 
 
 ;;; Output object creation (general)
@@ -491,7 +521,7 @@ one for each output object type present in OOD-LIST."
                 (format "This ~a creates the following ~as:\n%LIST\n\n"
                         creator
                         (car ood-type-entry))
-                (map ref-ify (cdr ood-type-entry))))
+                (map node-ref (cdr ood-type-entry))))
              oods-by-type))))
 
 
@@ -572,7 +602,7 @@ one for each output object type present in OOD-LIST."
              (node-name td))
      (format "@code{~a} is part of the following contexts:\n%LIST\n\n"
              (node-name td))
-     (map ref-ify context-docs))))
+     (map node-ref context-docs))))
 
 
 ;;; Translator - property relation
@@ -627,7 +657,7 @@ one for each output object type present in OOD-LIST."
             (path (cdr args)))
         (format "@item Set grob-property @code{~a} in ~a to ~a.\n"
                 (string-join (map symbol->string path) " ")
-                (ref-ify (name-sym->output-object-doc oo-name-sym))
+                (node-ref (name-sym->output-object-doc oo-name-sym))
                 (scm->texi value))))
      ((equal? (object-property (cadr prop-op) 'is-grob?) #t) "")
      ((equal? tag 'assign)
@@ -671,7 +701,7 @@ one for each output object type present in OOD-LIST."
 
 (define-method (translator-doc-embedded (td <translator-doc>))
   "Shortened translator description for embedding into context description."
-  (cons (format "@code{~a}" (ref-ify td))
+  (cons (format "@code{~a}" (node-ref td))
         (short-doc-string td)))
 
 

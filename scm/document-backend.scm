@@ -137,8 +137,7 @@ node."
 	 (engraver-names (map symbol->string
 			      (map ly:translator-name engravers)))
 	 (engraver-list (human-listify
-			 (map ref-ify
-			      (map engraver-name engraver-names)))))
+			 (map ref-ify engraver-names))))
 
     (make <texi-node>
       #:name namestr
@@ -210,7 +209,7 @@ node."
 	 (texi (description-list->texi descs #f)))
     texi))
 
-;;(dump-node (grob-doc (cdadr all-grob-descriptions)) (current-output-port) 0 )
+;; (texi-dump (grob-doc (cdadr all-grob-descriptions)) (current-output-port))
 (define (backend-doc-node)
   (make <texi-node>
     #:name "Backend"

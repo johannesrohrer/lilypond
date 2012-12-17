@@ -63,7 +63,7 @@
        (describe-list
         "Not accepted by any translator."
         "Accepted by: %LIST."
-        (map ref-ify (accepting name-sym)))))))
+        (map node-ref (accepting name-sym)))))))
 
 (define (music-types-doc)
   (make <texi-node>
@@ -97,7 +97,7 @@ accept or ignore events based on the classes assigned to them."
                           (describe-list
                            "Not accepted by any translator."
                            "Hence accepted by %LIST."
-                           (map ref-ify acceptors))))))
+                           (map node-ref acceptors))))))
     (string-append
      (object-property namesym 'music-description)
      event-texi
