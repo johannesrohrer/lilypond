@@ -3952,19 +3952,17 @@ les parties avec tous les @code{#()}.  Celles-ci sont expliquées dans
 @lilypond[quote,verbatim,ragged-right]
 mpdolce =
 #(make-dynamic-script
-  (markup #:hspace 0
-          #:translate '(5 . 0)
-          #:line (#:dynamic "mp"
-                  #:text #:italic "dolce")))
+  #{ \markup { \hspace #0
+               \translate #'(5 . 0)
+               \line { \dynamic "mp"
+                       \text \italic "dolce" } }
+  #})
 
 inst =
 #(define-music-function
      (parser location string)
      (string?)
-   (make-music
-    'TextScriptEvent
-    'direction UP
-    'text (markup #:bold (#:box string))))
+   #{ <>^\markup \bold \box #string #})
 
 \relative c'' {
   \tempo 4=50
@@ -3998,7 +3996,7 @@ inst =
 #(define-music-function
      (parser location string)
      (string?)
-   #@{ ^\markup \bold \box #string #@})
+   #@{ <>^\markup \bold \box #string #@})
 @end example
 
 Nous rappellerons ce fichier par une simple commande @code{\include} au
@@ -4038,7 +4036,7 @@ inst =
 #(define-music-function
      (parser location string)
      (string?)
-   #{ ^\markup \bold \box #string #})
+   #{ <>^\markup \bold \box #string #})
 
 \relative c'' {
   \tempo 4=50
@@ -4075,7 +4073,7 @@ inst =
 #(define-music-function
      (parser location string)
      (string?)
-   #@{ ^\markup \bold \box #string #@})
+   #@{ <>^\markup \bold \box #string #@})
 
 \layout@{
   \context @{
@@ -4108,7 +4106,7 @@ inst =
 #(define-music-function
      (parser location string)
      (string?)
-   #{ ^\markup \bold \box #string #})
+   #{ <>^\markup \bold \box #string #})
 
 \layout{
   \context {
@@ -4159,7 +4157,7 @@ inst =
 #(define-music-function
      (parser location string)
      (string?)
-   #@{ ^\markup \bold \box #string #@})
+   #@{ <>^\markup \bold \box #string #@})
 
 #(set-global-staff-size 23)
 
@@ -4193,7 +4191,7 @@ inst =
 #(define-music-function
      (parser location string)
      (string?)
-   #{ ^\markup \bold \box #string #})
+   #{ <>^\markup \bold \box #string #})
 
 #(set-global-staff-size 23)
 

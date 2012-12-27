@@ -1017,13 +1017,24 @@ music:	music_arg
 
 music_embedded:
 	music
+	{
+		if (unsmob_music ($1)->is_mus_type ("post-event")) {
+			parser->parser_error (@1, _ ("unexpected post-event"));
+			$$ = SCM_UNSPECIFIED;
+		}
+	}
 	| embedded_scm
 	{
-		if (unsmob_music ($1)
-		    || scm_is_eq ($1, SCM_UNSPECIFIED))
+		if (scm_is_eq ($1, SCM_UNSPECIFIED))
 			$$ = $1;
-		else
-		{
+		else if (Music *m = unsmob_music ($1)) {
+			if (m->is_mus_type ("post-event")) {
+				parser->parser_error
+					(@1, _ ("unexpected post-event"));
+				$$ = SCM_UNSPECIFIED;
+			} else
+				$$ = $1;
+		} else {
 			@$.warning (_ ("Ignoring non-music expression"));
 			$$ = SCM_UNSPECIFIED;
 		}
@@ -3042,6 +3053,8 @@ lyric_element:
 
 lyric_element_music:
 	lyric_element optional_notemode_duration post_events {
+		if (!parser->lexer_->is_lyric_state ())
+			parser->parser_error (@1, _ ("have to be in Lyric mode for lyrics"));
 		$$ = MAKE_SYNTAX ("lyric-event", @$, $1, $2);
 		if (scm_is_pair ($3))
 			unsmob_music ($$)->set_property
