@@ -178,8 +178,15 @@ port, but leave out the top-level @node and section command headers."
 ;;; Smaller texinfo building blocks
 
 (define-class <texi-item> ()
-  (key #:init-keyword #:key #:accessor item-key)
-  (text #:init-keyword #:text #:accessor item-text))
+  (key #:init-keyword #:key)
+  (text #:init-keyword #:text))
+
+;; Implement getters for key and text as explicit methods to make them
+;; overrideable (as used in <property-doc>).
+
+(define-method (item-key (ti <texi-item>)) (slot-ref ti 'key))
+
+(define-method (item-text (ti <texi-item>)) (slot-ref ti 'text))
 
 (define-method (texi-item-string (ti <texi-item>))
   "Return empty string if ti has empty key."

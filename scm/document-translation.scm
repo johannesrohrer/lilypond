@@ -24,6 +24,8 @@
 ;; * all-grob-descriptions
 ;; * all-user-translation-properties
 ;; * all-internal-translation-properties
+;; * Scheme object-properties associated with (LilyPond) property name
+;;   symbols
 
 ;;;; Class infrastructure
 
@@ -205,6 +207,57 @@
         (object-records oot))))
 
 
+;;; Properties
+
+;; We can retrieve a description text and a type predicate for each
+;; property from the following guile object-properties stored for the
+;; corresponding name symbol (see define-*-properties.scm):
+;;
+;; - for music properties: music-doc, music-type?
+;; - for context properties: translation-doc, translation-type?
+;; - for backend (grob) properties: backend-doc, backend-type?
+
+(define-class <property-doc> (<texi-item>)
+  (name-sym #:init-keyword #:name-sym #:getter name-sym)
+  (doc-object-property)
+  (type-object-property))
+
+(define-class <music-property-doc> (<property-doc>)
+  (doc-object-property #:init-value 'music-doc)
+  (type-object-property #:init-value 'music-type?))
+
+(define-class <context-property-doc> (<property-doc>)
+  (doc-object-property #:init-value 'translation-doc)
+  (type-object-property #:init-value 'translation-type?))
+
+(define-class <backend-property-doc> (<property-doc>)
+  (doc-object-property #:init-value 'backend-doc)
+  (type-object-property #:init-value 'backend-type?))
+
+
+(define-method (type-string (pd <property-doc>))
+  (let* ((type-op-key (slot-ref pd 'type-object-property))
+         (type (object-property (name-sym pd) type-op-key)))
+    (if (eq? type #f)
+        (ly:error (_ "cannot find description for property `~S' (~S)")
+                  (name-sym pd)
+                  type-op-key))
+    (type-name type)))
+
+(define-method (item-key (pd <property-doc>))
+  (format "@code{~a} (~a)"
+          (symbol->string (name-sym pd))
+          (type-string pd)))
+
+(define-method (item-text (pd <property-doc>))
+  (let* ((doc-op-key (slot-ref pd 'doc-object-property))
+         (desc (object-property (name-sym pd) doc-op-key)))
+    (if (eq? desc #f)
+        (ly:error (_ "cannot find description for property ~S (~S)")
+                  (name-sym pd)
+                  doc-op-key))
+    desc))
+
 
 ;;;; Assemble documentation structure
 
@@ -312,31 +365,27 @@ for assembling MIDI output. They are part of @ref{MIDI contexts}.")
 
 ;;; Properties
 
-;; This could be expanded...
+(define (context-property-table name-sym-list)
+  (make <texi-table>
+    #:items
+    (map (lambda (sym) (make <context-property-doc> #:name-sym sym))
+         (sort name-sym-list ly:symbol-ci<?))))
 
-(define (translation-properties-doc-string lst)
-  (let* ((ps (sort (map symbol->string lst) ly:string-ci<?))
-         (sortedsyms (map string->symbol ps))
-         (propdescs
-          (map
-           (lambda (x) (property->texi 'translation  x '()))
-           sortedsyms))
-         (texi (description-list->texi propdescs #f)))
-    texi))
-
-(define all-user-props-doc
+(define all-user-context-props-doc
   (make <texi-node>
     #:name "Tunable context properties"
     #:desc "All tunable context properties."
-    #:text (translation-properties-doc-string
-            all-user-translation-properties)))
+    #:text
+    (texi-table-string
+     (context-property-table all-user-translation-properties))))
 
-(define all-internal-props-doc
+(define all-internal-context-props-doc
   (make <texi-node>
     #:name "Internal context properties"
     #:desc "All internal context properties."
-    #:text (translation-properties-doc-string
-            all-internal-translation-properties)))
+    #:text
+    (texi-table-string
+     (context-property-table all-internal-translation-properties))))
 
 
 ;;; Translation top level
@@ -349,8 +398,8 @@ for assembling MIDI output. They are part of @ref{MIDI contexts}.")
     (list
      all-context-types-doc
      all-translator-types-doc
-     all-user-props-doc
-     all-internal-props-doc)))
+     all-user-context-props-doc
+     all-internal-context-props-doc)))
 
 
 ;;; Output objects
