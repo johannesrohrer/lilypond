@@ -26,7 +26,7 @@
 (define-class <texi-node> ()
   (appendix #:init-value #f #:accessor appendix? #:init-keyword #:appendix)
   (numbered #:init-value #t #:accessor numbered? #:init-keyword #:numbered)
-  (text #:init-value "" #:accessor node-text #:init-keyword #:text)
+  (text #:init-value "" #:accessor static-text #:init-keyword #:text)
   (name #:init-value "" #:accessor node-name #:init-keyword #:name)
   (description #:init-value "" #:accessor node-desc #:init-keyword #:desc)
   ;; Define an accessor node-children for the following member below.
@@ -44,6 +44,8 @@
 (define-method (initialize (tn <texi-node>) initargs)
   (next-method)
   (children-update-parent! tn))
+
+(define-method (node-text (tn <texi-node>)) (static-text tn))
 
 (define-accessor node-children)
 

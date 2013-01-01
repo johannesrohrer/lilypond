@@ -693,8 +693,9 @@ one for each output object type present in OOD-LIST."
    ;; "This [translator] creates the following [object(s)]: ..."
    (creations-string td)))
 
-(define-method (doc-string (td <translator-doc>))
+(define-method (node-text (td <translator-doc>))
   (string-append
+   (next-method)
    (short-doc-string td)
    ;; "[translator] is part of the following context(s): ..."
    (consisting-string td)))
@@ -707,8 +708,9 @@ one for each output object type present in OOD-LIST."
 
 ;;; Assemble single context documentation
 
-(define-method (doc-string (cd <context-doc>))
+(define-method (node-text (cd <context-doc>))
   (string-append
+   (next-method)
    (string-or (attr 'description cd) "(not documented)")
    "\n\n"
    ;; "This context also accepts commands for the following context(s): ..."
@@ -723,10 +725,3 @@ one for each output object type present in OOD-LIST."
    (accepts-string cd)
    ;; "This context is built from the following translators: ..."
    (consists-string cd)))
-
-
-;;; Create documentation node texts
-
-(map (lambda (x) (set! (node-text x) (doc-string x)))
-     (append all-context-docs-list
-             all-translator-docs-list))
