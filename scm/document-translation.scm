@@ -104,7 +104,12 @@
 
 ;;; Translators
 
-(define-class <translator-doc> (<texi-node>)
+;; Besides their standalone texinfo nodes, we also embed part of the
+;; documentation of translators into context documentation nodes as
+;; part of a table. Therefore make <translator-doc> support both the
+;; <texi-node> and the <texi-item> interface.
+
+(define-class <translator-doc> (<texi-node> <texi-item>)
   ;; <translator> object
   (translator #:init-keyword #:translator #:getter translator)
   (translator-type-doc   ; "parent" <translator-type-doc> object
@@ -125,6 +130,9 @@
 (define-method (initialize (td <translator-doc>) initargs)
   (next-method)
   (set! (node-name td) (symbol->string (name-sym td))))
+
+(define-method (item-key (td <translator-doc>))
+  (format "@code{~a}" (node-ref td)))
 
 
 ;;; Translator types (engravers, performers, ...)
@@ -589,9 +597,10 @@ one for each output object type present in OOD-LIST."
               (type-string tds "translator"))
       (format "This context is built from the following ~as:\n\n%DESC\n\n"
               (type-string tds "translator"))
-      (map translator-doc-embedded tds)
+      tds
       "%DESC"
-      (lambda (lst) (description-list->texi lst #t))))))
+      (lambda (lst)
+        (texi-quoted-table-string (make <texi-table> #:items lst)))))))
 
 (define-method (consisting-string (td <translator-doc>))
   (let* ((context-docs (consisting td)))
@@ -683,27 +692,22 @@ one for each output object type present in OOD-LIST."
 
 ;;; Assemble single translator documentation
 
-(define-method (short-doc-string (td <translator-doc>))
+(define-method (item-text (td <translator-doc>))
   (string-append
    (string-or (attr 'description td) "(not documented)")
    "\n\n"
    (accepts-string td)             ; "Music classes accepted: ..."
    (read-properties-string td)     ; "Properties (read) ..."
-   (written-properties-string td)  ; " Properties (written) ..."
+   (written-properties-string td)  ; "Properties (written) ..."
    ;; "This [translator] creates the following [object(s)]: ..."
    (creations-string td)))
 
 (define-method (node-text (td <translator-doc>))
   (string-append
    (next-method)
-   (short-doc-string td)
+   (item-text td)
    ;; "[translator] is part of the following context(s): ..."
    (consisting-string td)))
-
-(define-method (translator-doc-embedded (td <translator-doc>))
-  "Shortened translator description for embedding into context description."
-  (cons (format "@code{~a}" (node-ref td))
-        (short-doc-string td)))
 
 
 ;;; Assemble single context documentation

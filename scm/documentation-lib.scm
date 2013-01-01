@@ -209,6 +209,11 @@ port, but leave out the top-level @node and section command headers."
    (apply string-append (map texi-item-string (table-items tt)))
    "@end table\n"))
 
+(define-method (texi-quoted-table-string (tt <texi-table>))
+  "Generate a texinfo table wrapped in a @quotation environment from
+TT's items."
+  (string-append "@quotation\n" (texi-table-string tt) "@end quotation\n"))
+
 (define-method (texi-menu-string (tt <texi-table>))
   "Generate a texinfo menu from TT's items."
   (let ((max-key-length
