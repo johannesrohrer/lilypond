@@ -74,8 +74,8 @@
  (backend-properties-doc-string all-user-grob-properties)
  (open-output-file "layout-properties.tely"))
 
-(headless-texi-dump
- all-user-context-props-doc
+(display
+ (node-text-short all-user-context-props-doc)
  (open-output-file "context-properties.tely"))
 
 

@@ -244,19 +244,63 @@
                   type-op-key))
     (type-name type)))
 
+(define-method (description (pd <property-doc>))
+  (let* ((doc-op-key (slot-ref pd 'doc-object-property))
+         (desc (object-property (name-sym pd) doc-op-key)))
+    (if (eq? desc #f)
+        (ly:error (_ "cannot find description for property `~S' (~S)")
+                  (name-sym pd)
+                  doc-op-key))
+    desc))
+
+;; detailed documentation item for the main property tables
+
 (define-method (item-key (pd <property-doc>))
   (format "@code{~a} (~a)"
           (symbol->string (name-sym pd))
           (type-string pd)))
 
 (define-method (item-text (pd <property-doc>))
-  (let* ((doc-op-key (slot-ref pd 'doc-object-property))
-         (desc (object-property (name-sym pd) doc-op-key)))
-    (if (eq? desc #f)
-        (ly:error (_ "cannot find description for property ~S (~S)")
-                  (name-sym pd)
-                  doc-op-key))
-    desc))
+  ;; overridden with more detailed, cross-referencing information
+  ;; for specific types of properties later
+  (description pd))
+
+;; short documentation items for embedding elsewhere
+
+(define-method (property-item-short (pd <property-doc>))
+  (make <texi-item>
+    #:key (item-key pd)
+    #:text (description pd)))
+
+(define-method (property-value-item (pd <property-doc>) value)
+  (make <texi-item>
+    #:key (string-append
+           (item-key pd)
+           (format "\n\n~a\n\n" (scm->texi value)))
+    #:text (description pd)))
+
+(define (short-prop-table property-doc-list)
+  (make <texi-table>
+    #:items (map property-item-short property-doc-list)))
+
+(define (short-prop-table-string title property-doc-list)
+  (if (null? property-doc-list)
+      ""
+      (format
+       "~a\n~a\n\n"
+       title
+       (texi-quoted-table-string (short-prop-table property-doc-list)))))
+
+
+;;; Property types
+
+(define-class <property-type-doc> (<texi-node> <texi-table>))
+
+(define-method (node-text (ptd <property-type-doc>))
+  (texi-table-string ptd))
+
+(define-method (node-text-short (ptd <property-type-doc>))
+  (texi-table-string (short-prop-table (table-items ptd))))
 
 
 ;;;; Assemble documentation structure
@@ -365,27 +409,21 @@ for assembling MIDI output. They are part of @ref{MIDI contexts}.")
 
 ;;; Properties
 
-(define (context-property-table name-sym-list)
-  (make <texi-table>
-    #:items
-    (map (lambda (sym) (make <context-property-doc> #:name-sym sym))
-         (sort name-sym-list ly:symbol-ci<?))))
-
 (define all-user-context-props-doc
-  (make <texi-node>
+  (make <property-type-doc>
     #:name "Tunable context properties"
     #:desc "All tunable context properties."
-    #:text
-    (texi-table-string
-     (context-property-table all-user-translation-properties))))
+    #:items
+    (map (lambda (sym) (make <context-property-doc> #:name-sym sym))
+         (sort all-user-translation-properties ly:symbol-ci<?))))
 
 (define all-internal-context-props-doc
-  (make <texi-node>
+  (make <property-type-doc>
     #:name "Internal context properties"
     #:desc "All internal context properties."
-    #:text
-    (texi-table-string
-     (context-property-table all-internal-translation-properties))))
+    #:items
+    (map (lambda (sym) (make <context-property-doc> #:name-sym sym))
+         (sort all-internal-translation-properties ly:symbol-ci<?))))
 
 
 ;;; Translation top level
@@ -486,6 +524,20 @@ for assembling MIDI output. They are part of @ref{MIDI contexts}.")
   (or (hash-ref name-sym->output-object-doc-table name-sym #f)
       (make <undocumented-output-object-doc> #:name-sym name-sym)))
 
+
+;;; Properties
+
+(define all-context-prop-items-list
+  (append (table-items all-user-context-props-doc)
+          (table-items all-internal-context-props-doc)))
+
+(define name-sym->context-property-doc-table (make-hash-table 180))
+(map (lambda (cpd)
+       (hash-set! name-sym->context-property-doc-table (name-sym cpd) cpd))
+     all-context-prop-items-list)
+
+(define (name-sym->context-property-doc name-sym)
+  (hash-ref name-sym->context-property-doc-table name-sym #f))
 
 
 ;;;; Assemble documentation node texts
@@ -665,27 +717,43 @@ one for each output object type present in OOD-LIST."
 
 ;;; Translator - property relation
 
-(define (format-properties-list props)
-  (let ((description-list (map (lambda (x)
-                                 (property->texi 'translation x '()))
-                               (sort props ly:symbol-ci<?))))
-    (if (null? props)
-        ""
-        (description-list->texi description-list #t))))
+(define-method (reads (td <translator-doc>))
+  "Return a list of <context-property-doc> instances."
+  (map name-sym->context-property-doc
+       (attr 'properties-read td '())))
+
+(define-method (writes (td <translator-doc>))
+  "Return a list of <context-property-doc> instances."
+  (map name-sym->context-property-doc
+       (attr 'properties-written td '())))
+
+(define-method (readers (cpd <context-property-doc>))
+  "Return a list of <translator-doc> instances."
+  (filter (lambda (td) (member cpd (reads td)))
+          all-translator-docs-list))
+
+(define-method (writers (cpd <context-property-doc>))
+  "Return a list of <translator-doc> instances."
+  (filter (lambda (td) (member cpd (writes td)))
+          all-translator-docs-list))
 
 (define-method (read-properties-string (td <translator-doc>))
-  (let* ((props (attr 'properties-read td '())))
-    (if (null? props)
-        ""
-        (format "Properties (read):\n~a\n\n"
-                (format-properties-list props)))))
+  (short-prop-table-string "Properties (read):" (reads td)))
 
 (define-method (written-properties-string (td <translator-doc>))
-  (let* ((props (attr 'properties-written td '())))
-    (if (null? props)
-        ""
-        (format "Properties (written):\n~a\n\n"
-                (format-properties-list props)))))
+  (short-prop-table-string "Properties (written):" (writes td)))
+
+(define-method (reading-translators-string (cpd <context-property-doc>))
+  (describe-list
+   ""
+   "Read by %LIST.\n\n"
+   (map node-ref (readers cpd))))
+
+(define-method (writing-translators-string (cpd <context-property-doc>))
+  (describe-list
+   ""
+   "Written by %LIST.\n\n"
+   (map node-ref (writers cpd))))
 
 
 ;;; Context - output object relation
@@ -778,3 +846,12 @@ one for each output object type present in OOD-LIST."
    (accepts-string cd)
    ;; "This context is built from the following translators: ..."
    (consists-string cd)))
+
+
+;;; Assemble single context property documentation
+
+(define-method (item-text (cpd <context-property-doc>))
+  (string-append
+   (reading-translators-string cpd)
+   (writing-translators-string cpd)
+   (next-method)))
