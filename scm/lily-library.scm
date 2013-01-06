@@ -948,24 +948,6 @@ print a warning and set an optional @var{default}."
             (object->string def))
           def))))
 
-;;
-;; don't confuse users with #<procedure .. > syntax.
-;;
-(define-public (scm->string val)
-  (if (and (procedure? val)
-	   (symbol? (procedure-name val)))
-      (symbol->string (procedure-name val))
-      (string-append
-       (if (self-evaluating? val)
-	   (if (string? val)
-	       "\""
-	       "")
-	   "'")
-       (call-with-output-string (lambda (port) (display val port)))
-       (if (string? val)
-	   "\""
-	   ""))))
-
 (define-public (!= lst r)
   (not (= lst r)))
 

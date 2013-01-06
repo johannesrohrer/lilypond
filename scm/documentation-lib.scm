@@ -19,7 +19,8 @@
 (use-modules (oop goops)
 	     (srfi srfi-13)
 	     (srfi srfi-1)
-             (ice-9 regex))
+             (ice-9 regex)
+             (scm display-scm))
 
 ;;; Texinfo node interface
 
@@ -264,8 +265,11 @@ TT's items."
      str
      rules)))
 
-(define (scm->texi x)
-  (string-append "@code{" (texify (scm->string x)) "}"))
+(define* (scm->texi x #:key (multiline? #t))
+  (let ((tstr (texify (scm->string x #:multiline? multiline?))))
+    (if (and multiline? (string-index tstr #\newline))
+        (format #f "\n@verbatim\n~a\n@end verbatim\n" tstr)
+        (format #f "@code{~a}" tstr))))
 
 
 (define (texi-section-command level)

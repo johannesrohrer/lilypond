@@ -810,7 +810,7 @@ described by PROPPATH, a list of symbols."
    (pushes CD)."
   (format
    #f
-   "For ~a objects, set the default value of @code{~a} to ~a."
+   "For ~a objects, set the default value of @code{~a} to ~a"
    (node-ref (car pp-triple))
    (prop-path->string (cadr pp-triple))
    (scm->texi (caddr pp-triple))))
@@ -867,7 +867,7 @@ default value VAL."
 
 (define-method (context-properties-set-strings (cd <context-doc>))
   (map (lambda (ass) ; ass = (PROP-DOC . VAL)
-         (format #f "@item Set context property ~a to ~a.\n"
+         (format #f "@item Set context property ~a to ~a\n"
                  (item-name (car ass))
                  (scm->texi (cdr ass))))
          (assigns cd)))
