@@ -235,6 +235,9 @@
   (type-object-property #:init-value 'backend-type?))
 
 
+(define-method (item-name (pd <property-doc>))
+  (format #f "@code{~a}" (symbol->string (name-sym pd))))
+
 (define-method (type-string (pd <property-doc>))
   (let* ((type-op-key (slot-ref pd 'type-object-property))
          (type (object-property (name-sym pd) type-op-key)))
@@ -256,9 +259,7 @@
 ;; detailed documentation item for the main property tables
 
 (define-method (item-key (pd <property-doc>))
-  (format "@code{~a} (~a)"
-          (symbol->string (name-sym pd))
-          (type-string pd)))
+  (format #f "~a (~a)" (item-name pd) (type-string pd)))
 
 (define-method (item-text (pd <property-doc>))
   ;; overridden with more detailed, cross-referencing information
@@ -743,17 +744,23 @@ one for each output object type present in OOD-LIST."
 (define-method (written-properties-string (td <translator-doc>))
   (short-prop-table-string "Properties (written):" (writes td)))
 
-(define-method (reading-translators-string (cpd <context-property-doc>))
-  (describe-list
-   ""
-   "Read by %LIST.\n\n"
-   (map node-ref (readers cpd))))
-
-(define-method (writing-translators-string (cpd <context-property-doc>))
-  (describe-list
-   ""
-   "Written by %LIST.\n\n"
-   (map node-ref (writers cpd))))
+(define-method (readers/writers-strings (cpd <context-property-doc>))
+  (let* ((reading (readers cpd))
+         (writing (writers cpd))
+         (reading+writing (lset-intersection eq? reading writing))
+         (reading-only (lset-difference eq? reading reading+writing))
+         (writing-only (lset-difference eq? writing reading+writing))
+         (rw-string (describe-list ""
+                                   "@item Read and written by %LIST.\n\n"
+                                   (map node-ref reading+writing)))
+         (r-string (describe-list ""
+                                  "@item Read by %LIST.\n\n"
+                                  (map node-ref reading-only)))
+         (w-string (describe-list ""
+                                  "@item Written by %LIST.\n\n"
+                                  (map node-ref writing-only))))
+    (filter (lambda (s) (not (string-null? s)))
+            (list rw-string r-string w-string))))
 
 
 ;;; Context - output object relation
@@ -772,39 +779,110 @@ one for each output object type present in OOD-LIST."
 
 ;;; Context - property relation
 
-(define-method (property-operation-string prop-op (ctd <context-type-doc>))
-  (let* ((tag (car prop-op))
-         (sym (cadr prop-op))  ; meaning of sym depends on tag
-         (args (cddr prop-op)))
-    (cond
-     ((equal? tag 'push)       ; sym is name symbol for related grob
-      (let ((oo-name-sym (cadr prop-op))
-            (value (car args))
-            (path (cdr args)))
-        (format "@item Set grob-property @code{~a} in ~a to ~a.\n"
-                (string-join (map symbol->string path) " ")
-                (node-ref (name-sym->output-object-doc oo-name-sym))
-                (scm->texi value))))
-     ((equal? (object-property (cadr prop-op) 'is-grob?) #t) "")
-     ((equal? tag 'assign)
-      (let ((prop-name-sym (cadr prop-op)))
-        (format #f "@item Set translator property @code{~a} to ~a.\n"
-                (symbol->string prop-name-sym)
-                (scm->texi (car args))))))))
+(define-method (pushes (cd <context-doc>))
+  "Return a list of triples (OO PROPPATH VAL), which signify that in
+context CD, output objects of type OO (<output-object-doc> instance)
+receive a default value VAL for the nested output object property
+described by PROPPATH, a list of symbols."
+  (let* ((prop-ops (attr 'property-ops cd '()))
+         (push-ops (filter (lambda (op) (eq? (car op) 'push))
+                           prop-ops)))
+    (sort
+     (map
+      (lambda (op) ; op = ('property-ops OO VALUE PROP [SUBPROP...])
+        (list (name-sym->output-object-doc (cadr op))
+              (cdddr op)
+              (caddr op)))
+      push-ops)
+     prop-push<?)))
+
+(define (prop-path->string path)
+  (string-join (map symbol->string path) "."))
+
+(define (prop-push<? a b) ; for sorting (OO PROPPATH VAL) triples
+  (or (ly:string-ci<? (node-name (car a)) (node-name (car b)))
+      (and (equal? (car a) (car b))
+           (ly:string-ci<? (prop-path->string (cadr a))
+                           (prop-path->string (cadr b))))))
+
+(define (prop-push->string pp-triple)
+  "Textual description of (OO PROPPATH VAL) triples returned by
+   (pushes CD)."
+  (format
+   #f
+   "For ~a objects, set the default value of @code{~a} to ~a."
+   (node-ref (car pp-triple))
+   (prop-path->string (cadr pp-triple))
+   (scm->texi (caddr pp-triple))))
+
+(define-method (pushing (bpd <backend-property-doc>))
+  "Return a list of pairs (CD . OO), which signify that the context
+CD (<context-doc> instance) pushes a default value for the property
+BPD of output objects of type OO (<output-object-doc> instance)."
+  (apply
+   append
+   (map
+    (lambda (cd)
+      (let*
+          ((all-pushes (pushes cd))
+           (pushes-for-bpd (filter (lambda (p)
+                                     (eq? (caadr p) (name-sym bpd)))
+                                   all-pushes)))
+        (map (lambda (p) (cons cd (car p))) pushes-for-bpd)))
+    all-context-docs-list)))
+
+(define-method (assigns (cd <context-doc>))
+  "Return a list of pairs (PROP . VAL), which signify that the context
+CD sets a context property PROP (<context-property-doc> instance) to a
+default value VAL."
+  (let* ((prop-ops (attr 'property-ops cd '()))
+         (assign-ops (filter
+                       (lambda (op)
+                         (and
+                           (not (equal?
+                                  (object-property (cadr op) 'is-grob?)
+                                  #t))
+                           (eq? (car op) 'assign)))
+                       prop-ops)))
+    (map
+      (lambda (op) ; op = ('assign PROP-SYM VALUE)
+        (cons (name-sym->context-property-doc (cadr op)) (caddr op)))
+      (sort assign-ops (lambda (a b) (ly:symbol-ci<? (cadr a)
+                                                     (cadr b)))))))
+
+(define-method (assigning (cpd <context-property-doc>))
+  "Return a list of <context-doc> instances."
+  (filter (lambda (cd) (member cpd (map car (assigns cd))))
+          all-context-docs-list))
+
+(define-method (assigners-string (cpd <context-property-doc>))
+  (describe-list ""
+                 "@item Set in context %LIST.\n"
+                 "@item Set in contexts %LIST.\n"
+                 (map node-ref (assigning cpd))))
+
+(define-method (oo-properties-set-strings (cd <context-doc>))
+  (map (lambda (p) (format "@item ~a\n" (prop-push->string p)))
+       (pushes cd)))
+
+(define-method (context-properties-set-strings (cd <context-doc>))
+  (map (lambda (ass) ; ass = (PROP-DOC . VAL)
+         (format #f "@item Set context property ~a to ~a.\n"
+                 (item-name (car ass))
+                 (scm->texi (cdr ass))))
+         (assigns cd)))
 
 (define-method (properties-set-string (cd <context-doc>))
-  (let* ((ctd (context-type-doc cd))
-         (prop-ops (attr 'property-ops cd '()))
-         (prop-op-items (map (lambda (prop-op)
-                               (property-operation-string prop-op ctd))
-                             prop-ops))
-         (prop-ops-strings (sort prop-op-items ly:string-ci<?)))
-    (if (null? prop-ops-strings)
+  (let ((all-strings (append (context-properties-set-strings cd)
+                             (oo-properties-set-strings cd))))
+    (if (null? all-strings)
         ""
         (format
-         (string-append "This context sets the following properties:\n\n"
-                        "@itemize @bullet\n~a@end itemize\n\n")
-         (string-join prop-ops-strings)))))
+          #f
+          (string-append
+            "This context sets the following properties:\n\n"
+            "@itemize @bullet\n~a@end itemize\n\n")
+          (apply string-append all-strings)))))
 
 
 ;;; Assemble single translator documentation
@@ -851,7 +929,14 @@ one for each output object type present in OOD-LIST."
 ;;; Assemble single context property documentation
 
 (define-method (item-text (cpd <context-property-doc>))
-  (string-append
-   (reading-translators-string cpd)
-   (writing-translators-string cpd)
-   (next-method)))
+  (let ((rw-strings (readers/writers-strings cpd))
+        (as-string (assigners-string cpd)))
+    (if (not (string-null? as-string))
+        (append! rw-strings (list as-string)))
+   (string-append
+    (next-method)
+    "\n"
+    (if (null? rw-strings)
+        ""
+        (format #f "@itemize @bullet\n~a@end itemize\n\n"
+                (string-join rw-strings "\n"))))))
