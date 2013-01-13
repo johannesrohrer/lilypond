@@ -16,213 +16,311 @@
 ;;;; You should have received a copy of the GNU General Public License
 ;;;; along with LilyPond.  If not, see <http://www.gnu.org/licenses/>.
 
-(define (sort-grob-properties x)
-  ;; force 'meta to the end of each prop-list
-  (let ((meta (assoc 'meta x)))
-    (append (sort (assoc-remove! x 'meta) ly:alist-ci<?)
-            (list meta))))
 
-;; properly sort all grobs, properties, and interfaces
-;; within the all-grob-descriptions alist
-(map
-  (lambda (x)
-    (let* ((props      (assoc-ref all-grob-descriptions (car x)))
-           (meta       (assoc-ref props 'meta))
-           (interfaces (assoc-ref meta 'interfaces)))
-      (set! all-grob-descriptions
-        (sort (assoc-set! all-grob-descriptions (car x)
-               (sort-grob-properties
-                (assoc-set! props 'meta
-                 (assoc-set! meta 'interfaces
-                  (sort interfaces ly:symbol-ci<?)))))
-              ly:alist-ci<?))))
-  all-grob-descriptions)
+;;;; Additional class infrastructure
 
-(define (interface-doc-string interface grob-description)
-  (let* ((name (car interface))
-	 (desc (cadr interface))
-	 (props (caddr interface))
-	 (docfunc (lambda (pr)
-		    (property->texi
-		     'backend pr grob-description)))
-	 (iprops (filter (lambda (x) (object-property x 'backend-internal))
-			 props))
-	 (uprops (filter
-		  (lambda (x) (not (object-property x 'backend-internal)))
-		  props))
-	 (user-propdocs (map docfunc uprops))
-	 (internal-propdocs (map docfunc iprops)))
+;;; Interfaces
 
-    (string-append
-     desc
+;; Low-level interface documentation is available from the hash table
+;; (ly:all-grob-interfaces). It is indexed with name symbols, and each
+;; entry has the form (NAME-SYM DOCSTRING PROPERTY-NAME-SYM-LIST).
 
-     (if (pair? uprops)
-	 (string-append
-	  "\n\n@subsubheading User settable properties:\n"
-	  (description-list->texi user-propdocs #t))
-	 "")
+(define-class <interface-doc> (<texi-node>)
+  ;; related entry from (ly:all-grob-interfaces)
+  (record #:init-keyword #:iface-record #:getter iface-record))
 
-     (if (pair? iprops)
-	 (string-append
-	  "\n\n@subsubheading Internal properties:\n"
-	  (description-list->texi internal-propdocs #t))
-	 ""))))
+(define-method (name-sym (ifd <interface-doc>))
+  (car (iface-record ifd)))
 
-(define iface->grob-table (make-hash-table 61))
-;; extract ifaces, and put grob into the hash table.
-(map
- (lambda (x)
-   (let* ((meta (assoc-get 'meta (cdr x)))
-	  (ifaces (assoc-get 'interfaces meta)))
+(define-method (description (ifd <interface-doc>))
+  (cadr (iface-record ifd)))
 
-     (map (lambda (iface)
-	    (hashq-set!
-	     iface->grob-table iface
-	     (cons (car x)
-		   (hashq-ref iface->grob-table iface '()))))
-	  ifaces)))
- all-grob-descriptions)
+(define-method (initialize (ifd <interface-doc>) initargs)
+  (next-method)
+  (set! (node-name ifd) (symbol->string (name-sym ifd))))
 
-;; First level Interface description
-(define (interface-doc interface)
-  (let* ((name (symbol->string (car interface)))
-	 (interface-list (human-listify
-			  (map ref-ify
-			       (sort
-				(map symbol->string
-				     (hashq-ref iface->grob-table
-						(car interface)
-						'()))
-				ly:string-ci<?)))))
-    (make <texi-node>
-      #:name name
-      #:text (string-append
-	      (interface-doc-string (cdr interface) '())
-	      "\n\n"
-	      "This grob interface "
-	      (if (equal? interface-list "none")
-		  "is not used in any graphical object"
-		  (string-append
-		   "is used in the following graphical object(s): "
-		   interface-list))
-	      "."))))
 
-(define (grob-alist->texi alist)
-  (let* ((uprops (filter (lambda (x) (not (object-property x 'backend-internal)))
-			 (map car alist))))
+;;;; Assemble documentation structure
 
-    (description-list->texi
-     (map (lambda (y) (property->texi 'backend y alist))
-	  uprops)
-     #t)))
+;;; Output objects
 
-(define (grob-doc description)
-  "Given a property alist DESCRIPTION, make a documentation
-node."
+;; see document-translation.scm
 
-  (let* ((meta (assoc-get 'meta description))
-	 (name (assoc-get 'name meta))
-	 (namestr (symbol->string name))
-	 (ifaces (map lookup-interface (assoc-get 'interfaces meta)))
-	 (ifacedoc (map ref-ify
-			(sort
-			 (map (lambda (iface)
-				(if (pair? iface)
-				    (symbol->string (car iface))
-				    (ly:error (_ "pair expected in doc ~s") name)))
-			      ifaces)
-			 ly:string-ci<?)))
-	 (engravers (map translator
-                         (creators (name-sym->output-object-doc name))))
-	 (engraver-names (map symbol->string
-			      (map ly:translator-name engravers)))
-	 (engraver-list (human-listify
-			 (map ref-ify engraver-names))))
 
-    (make <texi-node>
-      #:name namestr
-      #:text
-      (string-append
-       namestr " objects "
-       (if (equal? engraver-list "none")
-	   "are not created by any engraver"
-	   (string-append
-	    "are created by: "
-	    engraver-list))
-       "."
+;;; Interfaces
 
-       "\n\nStandard settings:\n\n"
-       (grob-alist->texi description)
-       "\n\nThis object supports the following interface(s):\n"
-       (human-listify ifacedoc)
-       "."))))
+(define all-grob-interface-records
+  ;; sorted list of all values from hash table (ly:all-grob-interfaces)
+  (sort
+   (hash-fold (lambda (key value prior) (cons value prior))
+              '()
+              (ly:all-grob-interfaces))
+   ly:alist-ci<?))
 
-(define (all-grobs-doc)
-  (make <texi-node>
-    #:name "All layout objects"
-    #:desc "Description and defaults for all graphical objects (grobs)."
-    #:children
-    (map (lambda (x) (grob-doc (cdr x)))  all-grob-descriptions)))
-
-(define interface-description-alist
-  (hash-fold
-   (lambda (key val prior)
-     (cons (cons key val)  prior))
-   '() (ly:all-grob-interfaces)))
-
-(set! interface-description-alist
-  (sort interface-description-alist ly:alist-ci<?))
-
-;;;;;;;;;; check for dangling backend properties.
-(define (mark-interface-properties entry)
-  (map (lambda (x) (set-object-property! x 'iface-marked #t))
-       (caddr (cdr entry))))
-
-(map mark-interface-properties interface-description-alist)
-
-(define (check-dangling-properties prop)
-  (if (not (object-property prop 'iface-marked))
-      (ly:error (string-append "define-grob-properties.scm: "
-		(_ "cannot find interface for property: ~S")) prop)))
-
-(map check-dangling-properties all-backend-properties)
-
-;;;;;;;;;;;;;;;;
-
-(define (lookup-interface name)
-  (let* ((entry (hashq-ref (ly:all-grob-interfaces) name #f)))
-    (if entry
-	entry
-	(ly:error (_ "unknown Grob interface: ~S") name))))
-
-(define (all-interfaces-doc)
+(define all-grob-interfaces-doc
   (make <texi-node>
     #:name "Graphical Object Interfaces"
     #:desc "Building blocks of graphical objects."
     #:children
-    (map interface-doc interface-description-alist)))
+    (map (lambda (rec) (make <interface-doc> #:iface-record rec))
+         all-grob-interface-records)))
 
-(define (backend-properties-doc-string lst)
-  (let* ((ps (sort (map symbol->string lst) ly:string-ci<?))
-	 (descs (map (lambda (prop)
-		       (property->texi 'backend (string->symbol prop) '())) ps))
-	 (texi (description-list->texi descs #f)))
-    texi))
 
-;; (texi-dump (grob-doc (cdadr all-grob-descriptions)) (current-output-port))
-(define (backend-doc-node)
+;;; Output object properties
+
+(define all-user-grob-properties-doc
+  (make <property-type-doc>
+    #:name "Tunable layout properties"
+    #:desc "All tunable layout properties in a big list."
+    #:items
+    (map (lambda (sym) (make <backend-property-doc> #:name-sym sym))
+         (sort all-user-grob-properties ly:symbol-ci<?))))
+
+(define all-internal-grob-properties-doc
+  (make <property-type-doc>
+    #:name "Internal layout properties"
+    #:desc "All internal layout properties in a big list."
+    #:items
+    (map (lambda (sym) (make <backend-property-doc> #:name-sym sym))
+         (sort all-internal-grob-properties ly:symbol-ci<?))))
+
+
+;;; Complete layout backend
+
+(define layout-backend-doc-node
   (make <texi-node>
-    #:name "Backend"
+    #:name "Layout backend"
     #:desc "Reference for the layout engine."
     #:children
     (list
-     (all-grobs-doc)
-     (all-interfaces-doc)
-     (make <texi-node>
-       #:name "User backend properties"
-       #:desc "All tunable properties in a big list."
-       #:text (backend-properties-doc-string all-user-grob-properties))
-     (make <texi-node>
-       #:name "Internal backend properties"
-       #:desc "All internal layout properties in a big list."
-       #:text (backend-properties-doc-string all-internal-grob-properties)))))
+     all-grobs-doc
+     all-grob-interfaces-doc
+     all-user-grob-properties-doc
+     all-internal-grob-properties-doc)))
+
+
+;;;; Collect information for cross-referencing
+
+;;; Interfaces
+
+(define all-interface-docs-list
+  (append
+   ;; only grob interfaces for now
+   (node-children all-grob-interfaces-doc)))
+
+(define name-sym->interface-doc-table (make-hash-table 150))
+(map (lambda (ifd)
+       (hash-set! name-sym->interface-doc-table (name-sym ifd) ifd))
+     all-interface-docs-list)
+
+(define (name-sym->interface-doc name-sym)
+  (or (hash-ref name-sym->interface-doc-table
+                name-sym)
+      (begin
+        (ly:error (_ "unknown output object interface: ~S") name-sym)
+        #f)))
+
+
+;;; Output object properties
+
+(define all-backend-prop-items-list
+  (append (table-items all-user-grob-properties-doc)
+          (table-items all-internal-grob-properties-doc)))
+
+(define name-sym->backend-property-doc-table (make-hash-table 180))
+(map (lambda (bpd)
+       (hash-set! name-sym->backend-property-doc-table (name-sym bpd) bpd))
+     all-backend-prop-items-list)
+
+(define (name-sym->backend-property-doc name-sym)
+  (hash-ref name-sym->backend-property-doc-table name-sym #f))
+
+
+;;;; Assemble documentation node texts
+
+;;; Output-object - interface relation
+
+(define-method (implements (ood <output-object-doc>))
+  "Return a list of <interface-doc> instances."
+  (let ((iface-name-syms
+         (sort (assoc-get 'interfaces
+                          (assoc-get 'meta (cdr (object-record ood))))
+          ly:symbol-ci<?)))
+    (map name-sym->interface-doc iface-name-syms)))
+
+(define-method (implementing (ifd <interface-doc>))
+  "Return a list of <output-object-doc> instances."
+  (filter (lambda (ood) (member ifd (implements ood)))
+          all-output-object-docs-list))
+
+
+;;; Backend property - interface relation
+
+(define-method (supports (ifd <interface-doc>))
+  "Return a list of <backend-property-doc> instances."
+  (map name-sym->backend-property-doc
+       (sort (caddr (iface-record ifd)) ly:symbol-ci<?)))
+
+(define-method (supporting (bpd <backend-property-doc>))
+  "Return a list of <interface-doc> objects."
+  (let ((iface-docs
+         (filter (lambda (ifd) (member bpd (supports ifd)))
+                 all-interface-docs-list)))
+    ;; Since all backend properties must be supported by some
+    ;; interface, warn if we did not find any.
+    (if (null? iface-docs)
+        (ly:error
+         (string-append
+          "define-grob-properties.scm: "
+          (format #f (_ "cannot find interface for property: ~S")
+                  (name-sym bpd)))))
+    iface-docs))
+
+
+;;; Output-object - backend property relation
+
+(define-method (assignments (ood <output-object-doc>))
+  "Return a list of pairs (PROP . VAL), where PROP is a
+<backend-property-doc> instance."
+  (let* ((namesym-val-list-unsorted (cdr (object-record ood)))
+         (meta (assoc 'meta namesym-val-list-unsorted))
+         ;; force 'meta property to the end of the list
+         (namesym-val-list
+          (append
+           (sort (alist-delete 'meta namesym-val-list-unsorted)
+                 ly:alist-ci<?)
+           (list meta))))
+    (map (lambda (ns-v)
+           (let ((bpd (name-sym->backend-property-doc (car ns-v)))
+                 (value (cdr ns-v)))
+             (cons bpd value)))
+         namesym-val-list-unsorted)))
+
+(define-method (assignments-tunable (ood <output-object-doc>))
+  (filter (lambda (bpd-v) (not (internal? (car bpd-v))))
+          (assignments ood)))
+
+(define-method (assigns (ood <output-object-doc>))
+  "Return a list of <backend-property-doc> instances."
+  (map car (assignments ood)))
+
+(define-method (assigning (bpd <backend-property-doc>))
+  (filter (lambda (ood) (member bpd (assigns ood)))
+          all-output-object-docs-list))
+
+
+;;; Backend property - context - output object relation
+
+(define-method (pushing-string (bpd <backend-property-doc>))
+  (let* ((ctx-obj-list (pushing bpd))
+         (setting-contexts-by-obj
+          (sort
+           (group-by-function-result cdr ctx-obj-list)
+           (lambda (a b) (ly:symbol-ci<? (name-sym (car a))
+                                         (name-sym (car b)))))))
+    (cond
+     ((null? setting-contexts-by-obj) "")
+     ((equal? (length setting-contexts-by-obj) 1)
+      (let ((obj (caar setting-contexts-by-obj))
+            (contexts
+             ;; Duplicates could occur if a context pushes several
+             ;; subproperties of a nested property. For example,
+             ;; TabVoice pushes both bound-details.left and
+             ;; bound-details.right for Glissando grobs.
+             (delete-duplicates
+              (map car (cdar setting-contexts-by-obj)))))
+        (describe-list
+         "" ; this cannot happen
+         (format
+          #f
+          "Context-specific defaults for ~a objects are set in context %LIST.\n\n"
+          (node-ref obj))
+         (format
+          #f
+          "Context-specific defaults for ~a objects are set in contexts %LIST.\n\n"
+          (node-ref obj))
+         (map node-ref contexts))))
+     (else
+      (string-append
+       "Context-specific defaults are set\n"
+       "@itemize @bullet\n"
+       (string-join
+        (map
+         (lambda (lst)
+           (let ((obj (car lst))
+                 (contexts (delete-duplicates (map car (cdr lst)))))
+             (describe-list
+              (format #f "@item for ~a objects in context %LIST"
+                      (node-ref obj))
+              (format #f "@item for ~a objects in contexts %LIST"
+                      (node-ref obj))
+              (map node-ref contexts))))
+         setting-contexts-by-obj)
+        "\n\n")
+       "@end itemize\n\n")))))
+
+
+;;; Assemble single output object documentation
+
+(define-method (node-text (ood <output-object-doc>))
+  (let* ((namestr (node-name ood)))
+    (string-append
+     (describe-list
+      (format #f "~a objects are not created by any translator.\n\n"
+              namestr)
+      (format #f "~a objects are created by %LIST.\n\n"
+              namestr)
+      (map node-ref (creators ood)))
+
+     (short-prop-value-table-string
+      (format #f "Tunable properties with default settings for ~a:\n\n"
+              namestr)
+      (assignments-tunable ood))
+     "\n"
+
+     (describe-list
+      "This object does not support any interfaces.\n\n"
+      "This object supports the interface %LIST.\n\n"
+      "This object supports the following interfaces: %LIST.\n\n"
+      (map node-ref (implements ood))))))
+
+
+;;; Assemble single interface documentation
+
+(define-method (node-text (ifd <interface-doc>))
+  (let* ((props (supports ifd))
+         (iprops (filter internal? props))
+         (uprops (lset-difference equal? props iprops))
+         (objs (implementing ifd)))
+    (string-append
+     (description ifd)
+     "\n\n"
+     (describe-list
+      "This interface is not used for any output object."
+      "This interface is used for %LIST objects."
+      "This interface is used for the following objects: %LIST."
+      (map node-ref objs))
+     (short-prop-table-string
+      "\n\n@subsubheading User-settable properties:"
+      uprops)
+     (short-prop-table-string
+      "\n\n@subsubheading Internal properties:"
+      iprops))))
+
+
+;;; Assemble single backend property documentation
+
+(define-method (item-text (bpd <backend-property-doc>))
+  (string-append
+   (next-method)
+   "\n\n"
+   (describe-list
+    "No interface supports this property. THIS IS A BUG."
+    "Supported by %LIST."
+    (map node-ref (supporting bpd)))
+   "\n\n"
+   (describe-list
+    ""
+    "Global defaults are defined for %LIST.\n\n"
+    (map node-ref (assigning bpd)))
+   (pushing-string bpd)))

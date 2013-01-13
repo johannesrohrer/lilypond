@@ -242,19 +242,28 @@
   (let* ((type-op-key (slot-ref pd 'type-object-property))
          (type (object-property (name-sym pd) type-op-key)))
     (if (eq? type #f)
-        (ly:error (_ "cannot find description for property `~S' (~S)")
-                  (name-sym pd)
-                  type-op-key))
+        (ly:error (_ "cannot determine type ('~S) for property `~S'")
+                  type-op-key
+                  (name-sym pd)))
     (type-name type)))
 
 (define-method (description (pd <property-doc>))
   (let* ((doc-op-key (slot-ref pd 'doc-object-property))
          (desc (object-property (name-sym pd) doc-op-key)))
     (if (eq? desc #f)
-        (ly:error (_ "cannot find description for property `~S' (~S)")
-                  (name-sym pd)
-                  doc-op-key))
+        (ly:error (_ "cannot find description ('~S) for property `~S'")
+                  doc-op-key
+                  (name-sym pd)))
     desc))
+
+;; some property name symbols are marked as internal with a guile
+;; object property
+
+(define-method (internal? (cpd <context-property-doc>))
+  (object-property (name-sym cpd) 'internal-translation))
+
+(define-method (internal? (bpd <backend-property-doc>))
+  (object-property (name-sym bpd) 'backend-internal))
 
 ;; detailed documentation item for the main property tables
 
@@ -291,6 +300,22 @@
        "~a\n~a\n\n"
        title
        (texi-quoted-table-string (short-prop-table property-doc-list)))))
+
+(define (short-prop-value-table propdoc-val-list)
+  "From a list of pairs (PROPERTY-DOC . VAL), create a texinfo table."
+  (make <texi-table>
+    #:items (map (lambda (pd-v)
+                   (property-value-item (car pd-v) (cdr pd-v)))
+                 propdoc-val-list)))
+
+(define (short-prop-value-table-string title propdoc-val-list)
+  (if (null? propdoc-val-list)
+      ""
+      (format
+       "~a\n~a\n\n"
+       title
+       (texi-quoted-table-string
+        (short-prop-value-table propdoc-val-list)))))
 
 
 ;;; Property types
@@ -429,7 +454,7 @@ for assembling MIDI output. They are part of @ref{MIDI contexts}.")
 
 ;;; Translation top level
 
-(define (translation-doc-node)
+(define translation-doc-node
   (make <texi-node>
     #:name "Translation"
     #:desc "From music to layout or audio."
@@ -448,18 +473,25 @@ for assembling MIDI output. They are part of @ref{MIDI contexts}.")
 ;; creates the following [layout objects/audio items]", and to help
 ;; with cross-referencing.
 
+(define all-grobs-doc
+  (make <output-object-type-doc>
+    #:type-string "layout object"
+    #:name "All layout objects"
+    #:desc "Description and defaults for all graphical objects (grobs)."
+    #:object-records all-grob-descriptions))
+
+;; Audio element descriptions don't exist yet.
+;; (define all-audio-elements-doc
+;;   (make <output-object-type>
+;;     #:type-string "audio element"
+;;     #:name "All audio elements"
+;;     #:desc "Description and default for all audio element objects."
+;;     #:object-records all-audio-element-descriptions))
+
 (define documented-output-object-type-docs
   (list
-   (make <output-object-type-doc>
-     #:type-string "layout object"
-     #:name "All layout objects"
-     #:object-records all-grob-descriptions)
-
-   ;; Audio item descriptions don't exist yet.
-   ;;(make <output-object-type>
-   ;;  #:type-string "audio item"
-   ;;  #:name "All audio items"
-   ;;  #:object-records all-audio-item-descriptions)
+   all-grobs-doc
+   ;; all-audio-elements-doc
    ))
 
 
@@ -810,7 +842,7 @@ described by PROPPATH, a list of symbols."
    (pushes CD)."
   (format
    #f
-   "For ~a objects, set the default value of @code{~a} to ~a"
+   "For ~a objects, set @code{~a} to ~a"
    (node-ref (car pp-triple))
    (prop-path->string (cadr pp-triple))
    (scm->texi (caddr pp-triple))))
@@ -933,10 +965,10 @@ default value VAL."
         (as-string (assigners-string cpd)))
     (if (not (string-null? as-string))
         (append! rw-strings (list as-string)))
-   (string-append
-    (next-method)
-    "\n"
-    (if (null? rw-strings)
-        ""
-        (format #f "@itemize @bullet\n~a@end itemize\n\n"
-                (string-join rw-strings "\n"))))))
+    (string-append
+     (next-method)
+     "\n"
+     (if (null? rw-strings)
+         ""
+         (format #f "@itemize @bullet\n~a@end itemize\n\n"
+                 (string-join rw-strings "\n"))))))

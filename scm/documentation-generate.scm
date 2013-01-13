@@ -71,7 +71,7 @@
  (open-output-file "context-mod-identifiers.tely"))
 
 (display
- (backend-properties-doc-string all-user-grob-properties)
+ (node-text-short all-user-grob-properties-doc)
  (open-output-file "layout-properties.tely"))
 
 (display
@@ -145,8 +145,8 @@ This is the Internals Reference (IR) for version "
     #:children
     (list
      (music-doc-node)
-     (translation-doc-node)
-     (backend-doc-node)
+     translation-doc-node
+     layout-backend-doc-node
      (all-scheme-functions-doc)
      (make <texi-node>
        #:appendix #t
