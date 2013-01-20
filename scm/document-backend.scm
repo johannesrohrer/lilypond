@@ -52,9 +52,7 @@
 (define all-grob-interface-records
   ;; sorted list of all values from hash table (ly:all-grob-interfaces)
   (sort
-   (hash-fold (lambda (key value prior) (cons value prior))
-              '()
-              (ly:all-grob-interfaces))
+   (hash-map->list (lambda (a b) b) (ly:all-grob-interfaces))
    ly:alist-ci<?))
 
 (define all-grob-interfaces-doc
@@ -194,7 +192,7 @@
            (let ((bpd (name-sym->backend-property-doc (car ns-v)))
                  (value (cdr ns-v)))
              (cons bpd value)))
-         namesym-val-list-unsorted)))
+         namesym-val-list)))
 
 (define-method (assignments-tunable (ood <output-object-doc>))
   (filter (lambda (bpd-v) (not (internal? (car bpd-v))))
