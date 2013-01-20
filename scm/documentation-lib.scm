@@ -250,9 +250,6 @@ TT's items."
 
 ;;; Low-level stuff
 
-(define (self-evaluating? x)
-  (or (number? x) (string? x) (procedure? x) (boolean? x)))
-
 (define (texify str)
   "Escape STR for use in a texinfo document."
   ;; This may not be exhaustive.
@@ -349,11 +346,6 @@ defaults to human-listify."
     (regexp-substitute/global #f placeholder fstr
                               'pre (lst->str lst) 'post)))
 
-(define (ref-ify x)
-  "Return @ref{X}.  If mapping ref-ify to a list that needs to be sorted,
-   sort the list first."
-  (string-append "@ref{" x "}"))
-
 (define (human-listify lst)
   "Produce a textual enumeration from LST, a list of strings"
 
@@ -370,42 +362,3 @@ defaults to human-listify."
 
 (define (name-sym-ci<? a b)
   (ly:symbol-ci<? (name-sym a) (name-sym b)))
-
-
-;;; property  stuff
-
-(define (verify-type-name where sym type)
-  (if (eq? type #f)
-      (ly:error (_ "cannot find description for property `~S' (~S)")
-                sym
-                where))
-  (type-name type))
-
-(define (property->texi where sym . rest)
-  "Document SYM for WHERE (which can be translation, backend, music),
-with init values from ALIST (1st optional argument)
-"
-  (let* ((name (symbol->string sym))
-	 (alist (if (pair? rest) (car rest) '()))
-	 (type?-name (string->symbol
-		      (string-append (symbol->string where) "-type?")))
-	 (doc-name (string->symbol
-		    (string-append (symbol->string where) "-doc")))
-	 (type (object-property sym type?-name))
-	 (typename (verify-type-name where sym type))
-	 (desc (object-property sym doc-name))
-	 (init-value (assoc-get sym alist)))
-
-    (if (eq? desc #f)
-	(ly:error (_ "cannot find description for property ~S (~S)") sym where))
-
-    (cons
-     (string-append "@code{" name "} "
-		    "(" typename ")"
-		    (if init-value
-			(string-append
-			 ":\n\n"
-			 (scm->texi init-value)
-			 "\n\n")
-			""))
-     desc)))

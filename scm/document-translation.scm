@@ -163,6 +163,16 @@
     (if (equal? (length types) 1) (car types) fallback)))
 
 
+;;; Music classes
+
+(define-class <music-class-doc> (<texi-node>)
+  (name-sym #:init-keyword #:name-sym #:getter name-sym))
+
+(define-method (initialize (mcd <music-class-doc>) initargs)
+  (next-method)
+  (set! (node-name mcd) (symbol->string (name-sym mcd))))
+
+
 ;;; Output objects, e.g. grobs
 
 (define-class <output-object-doc> (<texi-node>)
@@ -213,7 +223,7 @@
 ;; property from the following guile object-properties stored for the
 ;; corresponding name symbol (see define-*-properties.scm):
 ;;
-;; - for music properties: music-doc, music-type?
+;; - for music properties: music-doc, music-type? (->document-music.scm)
 ;; - for context properties: translation-doc, translation-type?
 ;; - for backend (grob) properties: backend-doc, backend-type?
 
@@ -221,10 +231,6 @@
   (name-sym #:init-keyword #:name-sym #:getter name-sym)
   (doc-object-property)
   (type-object-property))
-
-(define-class <music-property-doc> (<property-doc>)
-  (doc-object-property #:init-value 'music-doc)
-  (type-object-property #:init-value 'music-type?))
 
 (define-class <context-property-doc> (<property-doc>)
   (doc-object-property #:init-value 'translation-doc)
@@ -466,6 +472,63 @@ for assembling MIDI output. They are part of @ref{MIDI contexts}.")
      all-internal-context-props-doc)))
 
 
+;;; Music classes
+
+;; Music types form a class hierarchy tree.
+;;
+;; Each music event EVENT is specifically and immediately of a type
+;; (ly:camel-case->lisp-identifier EVENT); these are the leaves of the
+;; tree.
+;;
+;; The position of any given music class CLASS within the tree can be
+;; determined with (ly:make-event-class GLOBAL-CONTEXT CLASS), which
+;; returns a list of class name symbols starting with CLASS, followed
+;; by its ancestors up to StreamEvent.
+;;
+;; No ready-made authoritative list of all music classes seems to
+;; exist, so we reconstruct this tree from the leaves, which we obtain
+;; from the list of music events.
+
+;; It seems that the structure of the class hierarchy could in
+;; principle vary depending on the output definition. I don't think
+;; this is currently used, so it should not matter whether we choose
+;; $defaultlayout or $defaultmidi here:
+
+(define doc-context (ly:make-global-context $defaultlayout))
+
+(define all-music-classes-list
+  (delete-duplicates
+   (sort
+    (apply
+     append
+     (map (lambda (m-ex-rec)
+            (let* ((event-ns (car m-ex-rec))
+                   (event-type-ns
+                    (ly:camel-case->lisp-identifier event-ns)))
+              (ly:make-event-class doc-context event-type-ns)))
+          music-descriptions))
+    ly:symbol-ci<?)))
+
+(define all-music-class-docs-list
+  (map (lambda (ns) (make <music-class-doc> #:name-sym ns))
+       all-music-classes-list))
+
+(define music-classes-doc
+  (make <texi-node>
+    #:name "Music classes"
+    #:desc "Groups of related music events."
+    #:text "Music classes group related music events.
+
+They provide the interface to the translation stage: @ref{Translators}
+accept or ignore events based on the classes assigned to them.
+
+Music classes form a hierarchy tree. Each music event (bottom-level
+music expression) @var{MyMusicEvent} is specifically of a type
+@var{my-music-event}; these are the leaves of the tree."
+    #:children
+    all-music-class-docs-list))
+
+
 ;;; Output objects
 
 ;; Currently not really documented here, but in document-backend.scm.
@@ -540,6 +603,17 @@ for assembling MIDI output. They are part of @ref{MIDI contexts}.")
 
 (define (name-sym->translator-doc name-sym)
   (hash-ref name-sym->translator-doc-table name-sym #f))
+
+
+;;; Music classes
+
+(define name-sym->music-class-doc-table (make-hash-table 100))
+(map (lambda (mcd)
+       (hash-set! name-sym->music-class-doc-table (name-sym mcd) mcd))
+     (node-children music-classes-doc))
+
+(define (name-sym->music-class-doc name-sym)
+  (hash-ref name-sym->music-class-doc-table name-sym #f))
 
 
 ;;; Output objects
@@ -691,24 +765,27 @@ one for each output object type present in OOD-LIST."
 
 ;;; Translator - music class relation
 
-;; We have no <event-class-doc> class yet, so for now these entities
-;; are referenced by name symbol only.
-
 (define-method (accepts (td <translator-doc>))
-  "Return list of name symbols of music classes accepted by td."
-  (sort (attr 'events-accepted td) ly:symbol-ci<?))
+  "Return list of <music-class-doc> instances."
+  (map name-sym->music-class-doc
+       (sort (attr 'events-accepted td) ly:symbol-ci<?)))
 
-(define (accepting music-class)
+(define-method (accepting (mcd <music-class-doc>))
   "Return a list <translator-doc> instances."
-  (filter (lambda (td) (member music-class (accepts td)))
+  (filter (lambda (td) (member mcd (accepts td)))
           all-translator-docs-list))
 
 (define-method (accepts-string (td <translator-doc>))
-  (let ((accepted (attr 'events-accepted td)))
-    (describe-list
-     ""
-     "Music classes accepted: %LIST.\n\n"
-     (map (lambda (ev) (ref-ify (symbol->string ev))) (accepts td)))))
+  (describe-list
+   ""
+   "Music classes accepted: %LIST.\n\n"
+   (map node-ref (accepts td))))
+
+(define-method (accepting-string (mcd <music-class-doc>))
+  (describe-list
+   "Not accepted by any translator.\n\n"
+   "Accepted by %LIST.\n\n"
+   (map node-ref (accepting mcd))))
 
 
 ;;; Translator - Context relation

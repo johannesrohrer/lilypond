@@ -144,7 +144,7 @@ This is the Internals Reference (IR) for version "
      " of LilyPond, the GNU music typesetter.")
     #:children
     (list
-     (music-doc-node)
+     music-doc-node
      translation-doc-node
      layout-backend-doc-node
      (all-scheme-functions-doc)
