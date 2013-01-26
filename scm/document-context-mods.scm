@@ -15,7 +15,14 @@
 ;;;; You should have received a copy of the GNU General Public License
 ;;;; along with LilyPond.  If not, see <http://www.gnu.org/licenses/>.
 
-(use-modules (ice-9 format))
+(define-module (scm document-context-mods)
+  #:use-module (ice-9 format)
+  #:use-module ((lily) #:select (ly:module->alist
+                                 ly:context-mod?
+                                 ly:get-context-mods))
+  #:use-module (scm lily-sort)
+  #:use-module ((scm texinfo-generation) #:select (scm->texi))
+  #:export (context-mods-doc-string))
 
 (define (grob-property-path path)
   (string-join (map symbol->string path) " "))
@@ -87,7 +94,7 @@
    (else
     #f)))
 
-(define context-mods-doc-string
+(define (context-mods-doc-string)
   (format
    "@table @asis
 ~a
@@ -100,5 +107,5 @@
       document-mod
       (sort
        (ly:module->alist (current-module))
-       identifier<?)))
+       (lambda (a b) (ly:symbol-ci<? (car a) (car b))))))
     "")))

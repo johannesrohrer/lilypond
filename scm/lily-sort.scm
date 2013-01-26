@@ -47,6 +47,14 @@
 ;; symbols like "Y-offset" appear near the top of lists which
 ;; otherwise include mostly lowercase symbols.
 
+(define-module (scm lily-sort)
+  #:export (ly:alist<?
+            ly:alist-ci<?
+            ly:string<?
+            ly:string-ci<?
+            ly:symbol<?
+            ly:symbol-ci<?))
+
 (define (ly:char-generic-<? a b ci)
   (let* ((init-list (string->list " !?<=>:-_"))
          (mem-a (member a init-list))

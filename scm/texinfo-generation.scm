@@ -1,8 +1,8 @@
 ;;;; This file is part of LilyPond, the GNU music typesetter.
 ;;;;
 ;;;; Copyright (C) 2000--2013 Han-Wen Nienhuys <hanwen@xs4all.nl>
-;;;;                 Jan Nieuwenhuizen <janneke@gnu.org>
-;;;;                 Johannes Rohrer <src@johannesrohrer.de>
+;;;;                          Jan Nieuwenhuizen <janneke@gnu.org>
+;;;;                          Johannes Rohrer <src@johannesrohrer.de>
 ;;;;
 ;;;; LilyPond is free software: you can redistribute it and/or modify
 ;;;; it under the terms of the GNU General Public License as published by
@@ -16,6 +16,8 @@
 ;;;;
 ;;;; You should have received a copy of the GNU General Public License
 ;;;; along with LilyPond.  If not, see <http://www.gnu.org/licenses/>.
+
+;;; Commentary:
 
 ;; Utilities for generating texinfo input files. Used for
 ;; automatically-generated documentation, like the Internals
@@ -32,6 +34,8 @@
 ;; <texi-document>, or parts of it with texi-dump or
 ;; headless-texi-dump. Sectioning commands are inserted automatically
 ;; based on nesting depth. Menus are generated automatically.
+
+;;; Code:
 
 (define-module (scm texinfo-generation)
   #:use-module (oop goops)
@@ -58,6 +62,54 @@
             table-items
             texi-table-string
             texi-quoted-table-string))
+
+
+;;; Low-level stuff
+
+(define (texify str)
+  "Escape STR for use in a texinfo document."
+  ;; This may not be exhaustive.
+  (let ((rules '(("@" . "@@")
+                 ("\\{" . "@{")
+                 ("\\}" . "@}"))))
+    (fold
+     (lambda (rule s)
+       (regexp-substitute/global #f (car rule) s 'pre (cdr rule) 'post))
+     str
+     rules)))
+
+(define* (scm->texi expr #:key (multiline? #t))
+  "Return a texinfo string representation of the scheme value EXPR."
+  (let ((tstr (texify (scm->string expr #:multiline? multiline?))))
+    (if (and multiline? (string-index tstr #\newline))
+        (format #f "\n@verbatim\n~a\n@end verbatim\n" tstr)
+        (format #f "@code{~a}" tstr))))
+
+
+(define (texi-section-command level)
+  (cond ((equal? level 0) "@top")
+        ;; Hmm, texinfo doesn't have ``part''
+        ((equal? level 1) "@chapter")
+        ((equal? level 2) "@section")
+        ((equal? level 3) "@subsection")
+        ((equal? level 4) "@subsubsec")
+        (else "@subsubheading")))
+
+(define (texi-unnumbered-section-command level)
+  (cond ((equal? level 0) "@top")
+        ((equal? level 1) "@unnumbered")
+        ((equal? level 2) "@unnumberedsec")
+        ((equal? level 3) "@unnumberedsubsec")
+        ((equal? level 4) "@unnumberedsubsubsec")
+        (else "@subsubheading")))
+
+(define (texi-appendix-section-command level)
+  (cond ((equal? level 0) "@top")
+        ((equal? level 1) "@appendix")
+        ((equal? level 2) "@appendixsec")
+        ((equal? level 3) "@appendixsubsec")
+        ((equal? level 4) "@appendixsubsubsec")
+        (else "@subsubheading")))
 
 
 ;;; Texinfo nodes (general)
@@ -310,51 +362,3 @@ TT's items."
      "@end quotation\n"
      "@end ifhtml\n\n"
      "@end ignore\n\n")))
-
-
-;;; Low-level stuff
-
-(define (texify str)
-  "Escape STR for use in a texinfo document."
-  ;; This may not be exhaustive.
-  (let ((rules '(("@" . "@@")
-                 ("\\{" . "@{")
-                 ("\\}" . "@}"))))
-    (fold
-     (lambda (rule s)
-       (regexp-substitute/global #f (car rule) s 'pre (cdr rule) 'post))
-     str
-     rules)))
-
-(define* (scm->texi expr #:key (multiline? #t))
-  "Return a texinfo string representation of the scheme value EXPR."
-  (let ((tstr (texify (scm->string expr #:multiline? multiline?))))
-    (if (and multiline? (string-index tstr #\newline))
-        (format #f "\n@verbatim\n~a\n@end verbatim\n" tstr)
-        (format #f "@code{~a}" tstr))))
-
-
-(define (texi-section-command level)
-  (cond ((equal? level 0) "@top")
-        ;; Hmm, texinfo doesn't have ``part''
-        ((equal? level 1) "@chapter")
-        ((equal? level 2) "@section")
-        ((equal? level 3) "@subsection")
-        ((equal? level 4) "@subsubsec")
-        (else "@subsubheading")))
-
-(define (texi-unnumbered-section-command level)
-  (cond ((equal? level 0) "@top")
-        ((equal? level 1) "@unnumbered")
-        ((equal? level 2) "@unnumberedsec")
-        ((equal? level 3) "@unnumberedsubsec")
-        ((equal? level 4) "@unnumberedsubsubsec")
-        (else "@subsubheading")))
-
-(define (texi-appendix-section-command level)
-  (cond ((equal? level 0) "@top")
-        ((equal? level 1) "@appendix")
-        ((equal? level 2) "@appendixsec")
-        ((equal? level 3) "@appendixsubsec")
-        ((equal? level 4) "@appendixsubsubsec")
-        (else "@subsubheading")))

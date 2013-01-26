@@ -1,7 +1,7 @@
 ;;;; This file is part of LilyPond, the GNU music typesetter.
 ;;;;
 ;;;; Copyright (C) 1998--2012 Han-Wen Nienhuys <hanwen@xs4all.nl>
-;;;;                 Jan Nieuwenhuizen <janneke@gnu.org>
+;;;;                          Jan Nieuwenhuizen <janneke@gnu.org>
 ;;;;
 ;;;; LilyPond is free software: you can redistribute it and/or modify
 ;;;; it under the terms of the GNU General Public License as published by
@@ -16,8 +16,14 @@
 ;;;; You should have received a copy of the GNU General Public License
 ;;;; along with LilyPond.  If not, see <http://www.gnu.org/licenses/>.
 
-(use-modules
- (ice-9 regex))
+(define-module (scm document-functions)
+  #:use-module (oop goops)
+  #:use-module ((ice-9 regex) #:select (regexp-substitute/global))
+  #:use-module ((lily) #:select (ly:get-all-function-documentation))
+  #:use-module (scm lily-sort)
+  #:use-module (scm texinfo-generation)
+  #:export (all-scheme-functions-doc))
+
 
 (define (dashify-underscores str)
    (regexp-substitute/global #f "_" str 'pre "-" 'post))

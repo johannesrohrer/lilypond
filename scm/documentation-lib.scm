@@ -1,8 +1,8 @@
 ;;;; This file is part of LilyPond, the GNU music typesetter.
 ;;;;
 ;;;; Copyright (C) 2000--2013 Han-Wen Nienhuys <hanwen@xs4all.nl>
-;;;;                 Jan Nieuwenhuizen <janneke@gnu.org>
-;;;;                 Johannes Rohrer <src@johannesrohrer.de>
+;;;;                          Jan Nieuwenhuizen <janneke@gnu.org>
+;;;;                          Johannes Rohrer <src@johannesrohrer.de>
 ;;;;
 ;;;; LilyPond is free software: you can redistribute it and/or modify
 ;;;; it under the terms of the GNU General Public License as published by
@@ -17,12 +17,21 @@
 ;;;; You should have received a copy of the GNU General Public License
 ;;;; along with LilyPond.  If not, see <http://www.gnu.org/licenses/>.
 
-(use-modules
- (oop goops)
- (srfi srfi-13)
- (srfi srfi-1)
- ((ice-9 regex) #:select (regexp-substitute/global))
- (scm texinfo-generation))
+;;; Commentary:
+
+;; General utility functions used for automatically-generated
+;; documentation assembly.
+
+;;; Code:
+
+(define-module (scm documentation-lib)
+  #:use-module ((srfi srfi-1) #:select (drop-while
+                                        take-while))
+  #:use-module ((ice-9 regex) #:select (regexp-substitute/global))
+  #:use-module (scm lily-sort)
+  #:export (string-or
+            describe-list
+            human-listify))
 
 
 (define (string-or . args)
@@ -65,11 +74,3 @@ defaults to human-listify."
    ((null? (cdr lst)) (car lst))
    ((null? (cddr lst)) (string-append (car lst) " and " (cadr lst)))
    (else (string-append (car lst) ", " (human-listify (cdr lst))))))
-
-(define (identifier<? a b)
-  (ly:string-ci<?
-   (symbol->string (car a))
-   (symbol->string (car b))))
-
-(define (name-sym-ci<? a b)
-  (ly:symbol-ci<? (name-sym a) (name-sym b)))

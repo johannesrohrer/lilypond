@@ -1,7 +1,8 @@
 ;;;; This file is part of LilyPond, the GNU music typesetter.
 ;;;;
-;;;; Copyright (C) 2000--2012 Han-Wen Nienhuys <hanwen@xs4all.nl>
-;;;; Jan Nieuwenhuizen <janneke@gnu.org>
+;;;; Copyright (C) 2000--2013 Han-Wen Nienhuys <hanwen@xs4all.nl>
+;;;;                          Jan Nieuwenhuizen <janneke@gnu.org>
+;;;;                          Johannes Rohrer <src@johannesrohrer.de>
 ;;;;
 ;;;; LilyPond is free software: you can redistribute it and/or modify
 ;;;; it under the terms of the GNU General Public License as published by
@@ -16,27 +17,28 @@
 ;;;; You should have received a copy of the GNU General Public License
 ;;;; along with LilyPond.  If not, see <http://www.gnu.org/licenses/>.
 
-;;; File entry point for generated documentation
-;;; Running LilyPond on this file generates the documentation
+;;; Commentary:
 
-;;(set-debug-cell-accesses! 5000)
+;; Scheme entry point for generated documentation. Running LilyPond on
+;; ly/generate-documentation.ly, which loads this file, generates the
+;; Internals Reference, as well as some texinfo include files for
+;; use in the Notation Manual.
 
-;;;;;;;;;;;;;;;;
-;;;;;;;;;;;;;;;; TODO : make modules of these!
-;;;;;;;;;;;;;;;;
+;;; Code:
 
-;; todo: naming: grob vs. layout property
-
-(map ly:load '("documentation-lib.scm"
-	       "lily-sort.scm"
-	       "document-functions.scm"
-	       "document-translation.scm"
-	       "document-music.scm"
-	       "document-type-predicates.scm"
-	       "document-identifiers.scm"
-	       "document-context-mods.scm"
-	       "document-backend.scm"
-	       "document-markup.scm"))
+(use-modules
+ (oop goops)
+ (scm texinfo-generation)
+ (scm document-context-mods)
+ (scm document-functions)
+ (scm document-identifiers)
+ (scm document-markup)
+ (scm document-type-predicates)
+ ((scm document-internals-docclasses) #:select (node-text-short))
+ ((scm document-internals-nodestructure)
+  #:select (tunable-grob-properties-doc
+            tunable-context-properties-doc))
+ (scm document-internals))
 
 
 ;;; Automatically generated material for Notation Manual appendices
@@ -67,97 +69,18 @@
  (open-output-file "identifiers.tely"))
 
 (display
- context-mods-doc-string
+ (context-mods-doc-string)
  (open-output-file "context-mod-identifiers.tely"))
 
 (display
- (node-text-short all-user-grob-properties-doc)
+ (node-text-short tunable-grob-properties-doc)
  (open-output-file "layout-properties.tely"))
 
 (display
- (node-text-short all-user-context-props-doc)
+ (node-text-short tunable-context-properties-doc)
  (open-output-file "context-properties.tely"))
 
 
 ;;; Generate the Internals Reference
 
-(write-texi-file
-  (make <texi-document>
-    #:title "LilyPond Internals Reference"
-    #:file-name "internals"
-    #:dir-category "LilyPond"
-    ;; prepend GNU for info directory entry; must be unique
-    #:dir-key "GNU LilyPond Internals Reference"
-    #:dir-desc "Definitions for tweaking"
-    #:preamble "
-@include macros.itexi
-
-@ignore
-@omftitle LilyPond internals
-@omfcreator Han-Wen Nienhuys and Jan Nieuwenhuizen
-@omfdescription Programmer's reference of the LilyPond music engraving system
-@omftype user's guide
-@omflanguage English
-@omfcategory Applications|Publishing
-@end ignore
-
-@iftex
-@afourpaper
-@end iftex
-
-@finalout
-
-@titlepage
-@title LilyPond
-@subtitle The music typesetter
-@titlefont{Internals Reference}
-@author The LilyPond development team
-
-@c `Internals Reference' was born 2000-10-21 with git commit 01e371f...
-Copyright @copyright{} 2000--2012 by the authors
-
-@vskip 20pt
-
-For LilyPond version @version{}
-@end titlepage
-
-@contents"
-    ;; top node data
-    #:name "GNU LilyPond -- Internals Reference"
-    #:text
-    (string-append
-     "@ifhtml
-@ifclear bigpage
-This document is also available as a
-@uref{source/Documentation/internals.pdf,PDF} and as
-@uref{source/Documentation/internals-big-page.html,one big page}.
-@end ifclear
-@ifset bigpage
-This document is also available as a
-@uref{source/Documentation/internals.pdf,PDF} and as a
-@uref{source/Documentation/internals/index.html,HTML indexed multiple pages}.
-@end ifset
-@end ifhtml
-
-This is the Internals Reference (IR) for version "
-     (lilypond-version)
-     " of LilyPond, the GNU music typesetter.")
-    #:children
-    (list
-     music-doc-node
-     translation-doc-node
-     layout-backend-doc-node
-     (all-scheme-functions-doc)
-     (make <texi-node>
-       #:appendix #t
-       #:name "Indices"
-       #:children
-       (list
-        (make <texi-node>
-          #:appendix #t
-          #:name "Concept index"
-          #:text "@printindex cp")
-        (make <texi-node>
-          #:appendix #t
-          #:name "Function index"
-          #:text "@printindex fn"))))))
+(write-texi-file (get-internals-reference-texidoc parser))

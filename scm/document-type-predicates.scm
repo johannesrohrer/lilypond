@@ -15,6 +15,16 @@
 ;;;; You should have received a copy of the GNU General Public License
 ;;;; along with LilyPond.  If not, see <http://www.gnu.org/licenses/>.
 
+(define-module (scm document-type-predicates)
+  #:use-module ((lily) #:select (lilypond-exported-predicates
+                                 lilypond-scheme-predicates
+                                 guile-predicates
+                                 r5rs-primary-predicates
+                                 r5rs-secondary-predicates))
+  #:use-module (scm lily-sort)
+  #:export (type-predicates-doc-string))
+
+
 (define (document-type-predicate entry)
   (let ((pred (procedure-name (car entry))))
     (string-append

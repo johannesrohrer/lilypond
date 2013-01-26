@@ -15,7 +15,16 @@
 ;;;; You should have received a copy of the GNU General Public License
 ;;;; along with LilyPond.  If not, see <http://www.gnu.org/licenses/>.
 
-(use-modules (ice-9 format))
+(define-module (scm document-identifiers)
+  #:use-module (ice-9 format)
+  #:use-module ((lily) #:select (ly:module->alist
+                                 ly:music-function?
+                                 ly:music-function-extract
+                                 ly:music-function-signature
+                                 ly:warning
+                                 type-name))
+  #:use-module (scm lily-sort)
+  #:export (identifiers-doc-string))
 
 (define (document-music-function music-func-pair)
   (let*
@@ -71,5 +80,5 @@
       document-object
       (sort
        (ly:module->alist (current-module))
-       identifier<?)))
+       (lambda (a b) (ly:symbol-ci<? (car a) (car b))))))
     "")))

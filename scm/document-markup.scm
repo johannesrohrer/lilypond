@@ -1,7 +1,7 @@
 ;;;; This file is part of LilyPond, the GNU music typesetter.
 ;;;;
 ;;;; Copyright (C) 1998--2012 Han-Wen Nienhuys <hanwen@xs4all.nl>
-;;;;                 Jan Nieuwenhuizen <janneke@gnu.org>
+;;;;                          Jan Nieuwenhuizen <janneke@gnu.org>
 ;;;;
 ;;;; LilyPond is free software: you can redistribute it and/or modify
 ;;;; it under the terms of the GNU General Public License as published by
@@ -15,6 +15,19 @@
 ;;;;
 ;;;; You should have received a copy of the GNU General Public License
 ;;;; along with LilyPond.  If not, see <http://www.gnu.org/licenses/>.
+
+(define-module (scm document-markup)
+  #:use-module (oop goops)
+  #:use-module ((srfi srfi-1) #:select (zip))
+  #:use-module ((ice-9 regex) #:select (regexp-substitute/global))
+  #:use-module ((lily) #:select (markup-functions-by-category
+                                 markup-functions-properties
+                                 markup-list-functions
+                                 type-name))
+  #:use-module (scm lily-sort)
+  #:use-module (scm texinfo-generation)
+  #:export (markup-doc-node
+            markup-list-doc-string))
 
 
 (define (doc-markup-function-properties func)
