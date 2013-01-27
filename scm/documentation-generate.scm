@@ -34,11 +34,15 @@
  (scm document-identifiers)
  (scm document-markup)
  (scm document-type-predicates)
- ((scm document-internals-docclasses) #:select (node-text-short))
  ((scm document-internals-nodestructure)
   #:select (tunable-grob-properties-doc
             tunable-context-properties-doc))
  (scm document-internals))
+
+
+;;; Generate the Internals Reference
+
+(write-texi-file (get-internals-reference-texidoc parser))
 
 
 ;;; Automatically generated material for Notation Manual appendices
@@ -73,14 +77,9 @@
  (open-output-file "context-mod-identifiers.tely"))
 
 (display
- (node-text-short tunable-grob-properties-doc)
+ (texi-table-string tunable-grob-properties-doc)
  (open-output-file "layout-properties.tely"))
 
 (display
- (node-text-short tunable-context-properties-doc)
+ (texi-table-string tunable-context-properties-doc)
  (open-output-file "context-properties.tely"))
-
-
-;;; Generate the Internals Reference
-
-(write-texi-file (get-internals-reference-texidoc parser))

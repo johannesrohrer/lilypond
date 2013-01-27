@@ -322,9 +322,12 @@ port, but leave out the top-level @node and section command headers."
 
 
 (define-class <texi-table> ()
-  (items #:init-keyword #:items
-         #:init-value '()
-         #:accessor table-items))
+  (items #:init-keyword #:items #:init-value '()))
+
+;; Implement getter for items as explicit method to make it
+;; overrideable
+
+(define-method (table-items (tt <texi-table>)) (slot-ref tt 'items))
 
 (define-method (texi-table-string (tt <texi-table>))
   "Generate a texinfo table from TT's items."

@@ -364,10 +364,10 @@ one for each output object type present in OOD-LIST."
           (all-translator-docs)))
 
 (define-method (read-properties-string (td <translator-doc>))
-  (short-prop-table-string "Properties (read):" (reads td)))
+  (prop-table-string (reads td) #:title "Properties (read):"))
 
 (define-method (written-properties-string (td <translator-doc>))
-  (short-prop-table-string "Properties (written):" (writes td)))
+  (prop-table-string (writes td) #:title "Properties (written):"))
 
 (define-method (readers/writers-strings (cpd <context-property-doc>))
   (let* ((reading (readers cpd))
@@ -492,8 +492,8 @@ default value VAL."
 
 (define-method (context-properties-set-strings (cd <context-doc>))
   (map (lambda (ass) ; ass = (PROP-DOC . VAL)
-         (format #f "@item Set context property ~a to ~a\n"
-                 (item-name (car ass))
+         (format #f "@item Set context property @code{~S} to ~a\n"
+                 (name-sym (car ass))
                  (scm->texi (cdr ass))))
          (assigns cd)))
 
@@ -644,10 +644,11 @@ default value VAL."
    (comprising-string mxd)
    (accepting-string mxd)
 
-   (short-prop-value-table-string
+   (prop-value-table-string
+    (assignments mxd)
+    #:title
     (format #f "Music properties with default settings for ~a:\n\n"
-            (node-name mxd))
-    (assignments mxd))))
+            (node-name mxd)))))
 
 
 ;;; Music class
@@ -662,7 +663,7 @@ default value VAL."
 
 ;;; Music property
 
-(define-method (item-text (mpd <music-property-doc>))
+(define-method (node-text (mpd <music-property-doc>))
   (string-append
    (next-method)
    "\n\n"
@@ -715,7 +716,7 @@ default value VAL."
 
 ;;; Context property
 
-(define-method (item-text (cpd <context-property-doc>))
+(define-method (node-text (cpd <context-property-doc>))
   (let ((rw-strings (readers/writers-strings cpd))
         (as-string (assigners-string cpd)))
     (if (not (string-null? as-string))
@@ -741,10 +742,11 @@ default value VAL."
               namestr)
       (map node-ref (creators ood)))
 
-     (short-prop-value-table-string
+     (prop-value-table-string
+      (assignments-tunable ood)
+      #:title
       (format #f "Tunable properties with default settings for ~a:\n\n"
-              namestr)
-      (assignments-tunable ood))
+              namestr))
      "\n"
 
      (describe-list
@@ -769,17 +771,17 @@ default value VAL."
       "This interface is used for %LIST objects."
       "This interface is used for the following objects: %LIST."
       (map node-ref objs))
-     (short-prop-table-string
-      "\n\n@subsubheading User-settable properties:"
-      uprops)
-     (short-prop-table-string
-      "\n\n@subsubheading Internal properties:"
-      iprops))))
+     (prop-table-string
+      uprops
+      #:title "\n\n@subsubheading User-settable properties:")
+     (prop-table-string
+      iprops
+      #:title "\n\n@subsubheading Internal properties:"))))
 
 
 ;;; Output object (backend) property
 
-(define-method (item-text (bpd <backend-property-doc>))
+(define-method (node-text (bpd <backend-property-doc>))
   (string-append
    (next-method)
    "\n\n"

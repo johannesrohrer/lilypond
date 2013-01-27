@@ -30,6 +30,7 @@
 
 (define-module (scm document-internals-docclasses)
   #:use-module (oop goops)
+  #:use-module (ice-9 optargs)
   #:use-module ((srfi srfi-1) #:select (delete-duplicates))
   #:use-module ((lily) #:select (assoc-get
                                  ly:translator-description
@@ -57,12 +58,10 @@
             attr
             description
             internal?
-            item-name
             low-level-record
             name-sym
-            node-text-short
-            short-prop-table-string
-            short-prop-value-table-string
+            prop-table-string
+            prop-value-table-string
             type-doc
             type-string))
 
@@ -84,7 +83,9 @@
 ;; translator.
 
 (define-class <internal-item-doc> (<texi-node>)
-  (type-doc #:init-keyword #:type-doc #:getter type-doc)
+  (type-doc #:init-value #f
+            #:init-keyword #:type-doc
+            #:getter type-doc)
   (low-level-record #:init-keyword #:low-level-record
                     #:getter low-level-record))
 
@@ -110,7 +111,7 @@
 
 (define-class <internal-type-doc> (<texi-node>)
   (type-string #:init-keyword #:type-string #:getter type-string)
-  (subnode-class) ; init-value set in derived classes
+  (subnode-class #:init-keyword #:subnode-class)
   (low-level-records #:init-value #f
                      #:init-keyword #:low-level-records
                      #:accessor low-level-records))
@@ -334,44 +335,68 @@
 ;; * all-user-translation-properties and
 ;;   all-internal-translation-properties
 ;; * all-user-grob-properties and all-internal-grob-properties
-
-(define-class <property-type-doc> (<texi-node> <texi-table>))
-
-(define-method (node-text (ptd <property-type-doc>))
-  (texi-table-string ptd))
-
-(define-method (node-text-short (ptd <property-type-doc>))
-  (texi-table-string (short-prop-table (table-items ptd))))
-
-;; We can retrieve a description text and a type predicate for each
-;; property from the following guile object-properties stored for the
-;; corresponding name symbol [define-*-properties.scm]:
+;;
+;; Simply use these name symbols as low-level-records. Additionally,
+;; for each property we can retrieve a description text, a type
+;; predicate and (not always) a marker designating the property as
+;; internal or tunable from the following guile object-properties
+;; stored for the corresponding name symbol [define-*-properties.scm]:
 ;;
 ;; - for music properties: music-doc, music-type?
-;; - for context properties: translation-doc, translation-type?
-;; - for backend (grob) properties: backend-doc, backend-type?
+;;
+;; - for context properties: translation-doc, translation-type?,
+;;   internal-translation
+;;
+;; - for backend (grob) properties: backend-doc, backend-type?,
+;;   backend-internal
 
-(define-class <property-doc> (<texi-item>)
-  (name-sym #:init-keyword #:name-sym #:getter name-sym)
+;; Besides standalone texinfo nodes, property documentation also gets
+;; embedded into other nodes as part of tables. Realize that with a
+;; smidgen of multiple inheritance.
+
+(define-class <property-doc> (<internal-item-doc> <texi-item>)
   (doc-object-property)
-  (type-object-property))
+  (type-object-property)
+  (internal?-object-property #:init-value #f))
 
 (define-class <music-property-doc> (<property-doc>)
   (doc-object-property #:init-value 'music-doc)
-  (type-object-property #:init-value 'music-type?))
+  (type-object-property #:init-value 'music-type?)
+  (internal? #:init-value #f #:getter internal?))
 
 (define-class <context-property-doc> (<property-doc>)
   (doc-object-property #:init-value 'translation-doc)
-  (type-object-property #:init-value 'translation-type?))
+  (type-object-property #:init-value 'translation-type?)
+  (internal?-object-property #:init-value 'internal-translation))
 
 (define-class <backend-property-doc> (<property-doc>)
   (doc-object-property #:init-value 'backend-doc)
-  (type-object-property #:init-value 'backend-type?))
+  (type-object-property #:init-value 'backend-type?)
+  (internal?-object-property #:init-value 'backend-internal))
 
-(define-method (item-name (pd <property-doc>))
-  (format #f "@code{~a}" (symbol->string (name-sym pd))))
 
-(define-method (type-string (pd <property-doc>))
+(define-class <property-type-doc> (<internal-type-doc> <texi-table>))
+
+(define-method (table-items (ptd <property-type-doc>))
+  (node-children ptd))
+
+
+(define-method (name-sym (pd <property-doc>))
+  (low-level-record pd))
+
+(define-method (initialize (pd <property-doc>) initargs)
+  (next-method)
+  ;; Some property name symbols are used for several types of
+  ;; properties, for example 'tonic (music and tunable context prop.)
+  ;; or 'X-offset (music, tunable layout; also, 'x-offset in internal
+  ;; layout). Therefore the texinfo node names need disambiguation.
+  ;;
+  ;; Statically append the property type string for now, but a better,
+  ;; less cluttering solution needs to be implemented soon.
+  (set! (node-name pd)
+        (format #f "~S (~a)" (name-sym pd) (type-string pd))))
+
+(define-method (value-type-string (pd <property-doc>))
   (let* ((type-op-key (slot-ref pd 'type-object-property))
          (type (object-property (name-sym pd) type-op-key)))
     (if (eq? type #f)
@@ -389,63 +414,58 @@
                   (name-sym pd)))
     desc))
 
-;; some property name symbols are marked as internal with a guile
-;; object property
+(define-method (internal? (pd <property-doc>))
+  (let ((internal?-op-key (slot-ref pd 'internal?-object-property)))
+    (object-property (name-sym pd) internal?-op-key)))
 
-(define-method (internal? (cpd <context-property-doc>))
-  (object-property (name-sym cpd) 'internal-translation))
+(define-method (node-text (pd <property-doc>))
+  ;; overridden with more detailed, cross-referencing information for
+  ;; specific types of properties later
+  (string-append
+   (format #f "@code{~S} (~a)" (name-sym pd) (value-type-string pd))
+   "\n\n"
+   (description pd)))
 
-(define-method (internal? (bpd <backend-property-doc>))
-  (object-property (name-sym bpd) 'backend-internal))
 
-;; detailed documentation item for the main property tables
+;; property tables (for embedding elsewhere)
 
 (define-method (item-key (pd <property-doc>))
-  (format #f "~a (~a)" (item-name pd) (type-string pd)))
+  (format #f "@code{~S} (~a)" (name-sym pd) (value-type-string pd)))
 
 (define-method (item-text (pd <property-doc>))
-  ;; overridden with more detailed, cross-referencing information
-  ;; for specific types of properties later
   (description pd))
 
-;; short documentation items for embedding elsewhere
+(define* (prop-table-string property-doc-list #:key (title ""))
+  "From a list of <property-doc> instances, create a texinfo table."
+  (if (null? property-doc-list)
+      ""
+      (format
+       "~a\n~a\n\n"
+       title
+       (texi-quoted-table-string
+        (make <texi-table> #:items property-doc-list)))))
 
-(define-method (property-item-short (pd <property-doc>))
-  (make <texi-item>
-    #:key (item-key pd)
-    #:text (description pd)))
+;; tables of properties that are set to specific values
 
 (define-method (property-value-item (pd <property-doc>) value)
   (make <texi-item>
     #:key (string-append
            (item-key pd)
            (format "\n\n~a\n\n" (scm->texi value)))
-    #:text (description pd)))
+    #:text (item-text pd)))
 
-(define (short-prop-table property-doc-list)
-  (make <texi-table>
-    #:items (map property-item-short property-doc-list)))
-
-(define (short-prop-table-string title property-doc-list)
-  (if (null? property-doc-list)
-      ""
-      (format
-       "~a\n~a\n\n"
-       title
-       (texi-quoted-table-string (short-prop-table property-doc-list)))))
-
-(define (short-prop-value-table propdoc-val-list)
-  "From a list of pairs (PROPERTY-DOC . VAL), create a texinfo table."
+(define (prop-value-table propdoc-val-list)
   (make <texi-table>
     #:items (map (lambda (pd-v)
                    (property-value-item (car pd-v) (cdr pd-v)))
                  propdoc-val-list)))
 
-(define (short-prop-value-table-string title propdoc-val-list)
+(define* (prop-value-table-string propdoc-val-list #:key (title ""))
+  "From a list of pairs (PROPERTY-DOC . VAL), create a texinfo table."
   (if (null? propdoc-val-list)
       ""
       (format
        "~a\n~a\n\n"
        title
        (texi-quoted-table-string
-        (short-prop-value-table propdoc-val-list)))))
+        (prop-value-table propdoc-val-list)))))

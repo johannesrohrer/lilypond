@@ -155,18 +155,19 @@ music expression) @var{MyMusicEvent} is specifically of a type
 
 ;;; Music properties
 
-(define all-music-property-docs-list
-  (map (lambda (sym) (make <music-property-doc> #:name-sym sym))
-       (sort all-music-properties ly:symbol-ci<?)))
-
-(define (all-music-property-docs) all-music-property-docs-list)
-
 (define music-props-doc
   (make <property-type-doc>
+    #:type-string "music property"
     #:name "Music properties"
     #:desc "All music properties, including descriptions."
-    #:items
-    all-music-property-docs-list))
+    #:subnode-class <music-property-doc>
+    #:low-level-records
+    (sort all-music-properties ly:symbol-ci<?)))
+
+(define all-music-property-docs-list (node-children music-props-doc))
+
+(define (all-music-property-docs)
+  all-music-property-docs-list)
 
 
 ;;; Music definitions top level
@@ -317,33 +318,35 @@ control their behaviour."
 
 ;;; Context properties
 
+(define tunable-context-properties-doc
+  (make <property-type-doc>
+    #:name "Tunable context properties"
+    #:type-string "tunable context property"
+    #:desc "All tunable context properties."
+    #:subnode-class <context-property-doc>
+    #:low-level-records
+    (sort all-user-translation-properties ly:symbol-ci<?)))
+
 (define tunable-context-prop-docs-list
-  (map (lambda (sym) (make <context-property-doc> #:name-sym sym))
-       (sort all-user-translation-properties ly:symbol-ci<?)))
+  (node-children tunable-context-properties-doc))
+
+(define internal-context-properties-doc
+  (make <property-type-doc>
+    #:name "Internal context properties"
+    #:type-string "internal context property"
+    #:desc "All internal context properties."
+    #:subnode-class <context-property-doc>
+    #:low-level-records
+    (sort all-internal-translation-properties ly:symbol-ci<?)))
 
 (define internal-context-prop-doc-list
-  (map (lambda (sym) (make <context-property-doc> #:name-sym sym))
-       (sort all-internal-translation-properties ly:symbol-ci<?)))
+  (node-children internal-context-properties-doc))
 
 (define all-context-property-docs-list
   (append tunable-context-prop-docs-list
           internal-context-prop-doc-list))
 
 (define (all-context-property-docs) all-context-property-docs-list)
-
-(define tunable-context-properties-doc
-  (make <property-type-doc>
-    #:name "Tunable context properties"
-    #:desc "All tunable context properties."
-    #:items
-    tunable-context-prop-docs-list))
-
-(define internal-context-properties-doc
-  (make <property-type-doc>
-    #:name "Internal context properties"
-    #:desc "All internal context properties."
-    #:items
-    internal-context-prop-doc-list))
 
 
 ;;; Translation top level
@@ -419,22 +422,24 @@ control their behaviour."
 (define tunable-grob-properties-doc
   (make <property-type-doc>
     #:name "Tunable layout properties"
+    #:type-string "tunable layout property"
     #:desc "All tunable layout properties in a big list."
-    #:items
-    (map (lambda (sym) (make <backend-property-doc> #:name-sym sym))
-         (sort all-user-grob-properties ly:symbol-ci<?))))
+    #:subnode-class <backend-property-doc>
+    #:low-level-records
+    (sort all-user-grob-properties ly:symbol-ci<?)))
 
 (define internal-grob-properties-doc
   (make <property-type-doc>
     #:name "Internal layout properties"
+    #:type-string "internal layout property"
     #:desc "All internal layout properties in a big list."
-    #:items
-    (map (lambda (sym) (make <backend-property-doc> #:name-sym sym))
-         (sort all-internal-grob-properties ly:symbol-ci<?))))
+    #:subnode-class <backend-property-doc>
+    #:low-level-records
+    (sort all-internal-grob-properties ly:symbol-ci<?)))
 
 (define all-backend-property-docs-list
-  (append (table-items tunable-grob-properties-doc)
-          (table-items internal-grob-properties-doc)))
+  (append (node-children tunable-grob-properties-doc)
+          (node-children internal-grob-properties-doc)))
 
 (define (all-backend-property-docs) all-backend-property-docs-list)
 
