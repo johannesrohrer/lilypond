@@ -40,6 +40,7 @@
                                         lset-intersection))
   #:use-module (oop goops)
   #:use-module ((lily) #:select (assoc-get
+                                 format
                                  ly:camel-case->lisp-identifier
                                  ly:make-event-class))
   #:use-module (scm lily-sort)

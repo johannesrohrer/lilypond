@@ -16,8 +16,8 @@
 ;;;; along with LilyPond.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (scm document-identifiers)
-  #:use-module (ice-9 format)
-  #:use-module ((lily) #:select (ly:module->alist
+  #:use-module ((lily) #:select (format
+                                 ly:module->alist
                                  ly:music-function?
                                  ly:music-function-extract
                                  ly:music-function-signature

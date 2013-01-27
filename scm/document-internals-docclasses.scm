@@ -33,6 +33,7 @@
   #:use-module (ice-9 optargs)
   #:use-module ((srfi srfi-1) #:select (delete-duplicates))
   #:use-module ((lily) #:select (assoc-get
+                                 format
                                  ly:translator-description
                                  ly:translator-name
                                  ly:output-description

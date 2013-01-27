@@ -42,7 +42,7 @@
   #:use-module (ice-9 optargs)
   #:use-module ((ice-9 regex) #:select (regexp-substitute/global))
   #:use-module ((srfi srfi-1) #:select (fold))
-  #:use-module ((lily) #:select (ly:progress _))
+  #:use-module ((lily) #:select (format ly:progress _))
   #:use-module ((scm display-scm) #:select (scm->string))
   #:export (texify
             scm->texi

@@ -20,7 +20,8 @@
   #:use-module (oop goops)
   #:use-module ((srfi srfi-1) #:select (zip))
   #:use-module ((ice-9 regex) #:select (regexp-substitute/global))
-  #:use-module ((lily) #:select (markup-functions-by-category
+  #:use-module ((lily) #:select (format
+                                 markup-functions-by-category
                                  markup-functions-properties
                                  markup-list-functions
                                  type-name))
