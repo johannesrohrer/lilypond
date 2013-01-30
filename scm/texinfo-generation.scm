@@ -42,11 +42,19 @@
   #:use-module (ice-9 optargs)
   #:use-module ((ice-9 regex) #:select (regexp-substitute/global))
   #:use-module ((srfi srfi-1) #:select (fold))
-  #:use-module ((lily) #:select (format ly:progress _))
+  #:use-module ((lily) #:select (format
+                                 ly:message
+                                 ly:progress
+                                 _))
   #:use-module ((scm display-scm) #:select (scm->string))
+  #:use-module ((scm documentation-lib)
+                #:select (group-by-function-result
+                          string-or))
   #:export (texify
             scm->texi
             <texi-node>
+            disambiguate-node-names!
+            disambig-suffix
             headless-texi-dump
             node-children
             node-name
@@ -136,6 +144,16 @@
   (parent #:init-keyword #:parent
           #:init-value #f
           #:accessor node-parent)
+  ;; If disambiguate-node-names! needs to change the name of this node
+  ;; to avoid a collision with an eponymous one, first try to do this
+  ;; by appending this suffix (if set) to the original node name.
+  (disambig-suffix #:init-value #f
+                   #:init-keyword #:disambig-suffix
+                   #:accessor disambig-suffix)
+  ;; If disambiguate-node-names! changes the name of this node to
+  ;; avoid conflicts, it lists all nodes that previously conflicted
+  ;; with this one here.
+  (disambig-list #:init-value '() #:accessor disambig-list)
   ;; When calculating the sectioning level for this node (node-level
   ;; method), assign this level to the root of the present node tree.
   (root-level #:init-keyword #:root-level
@@ -224,6 +242,54 @@ port, but leave out the top-level @node and section command headers."
   (display (headless-texi-string tn) port)
   (map (lambda (subnode) (texi-dump subnode port))
        (node-children tn)))
+
+(define-method (flat-node-list (tn <texi-node>))
+  "Helper function: Return a flat list of all texi nodes in the
+texinfo tree with root TN."
+  (apply append
+         (cons (list tn)
+               (map flat-node-list (node-children tn)))))
+
+(define-method (disambiguate-node-names! (tn <texi-node>))
+  "Check for duplicate node names in the texinfo node tree with root
+TN. Solve all conflicts by appending suffixes to node names as
+necessary: first, add the one from the disambig-suffix slot, if
+available; if that is not sufficient, add parenthesized numbers.
+
+If node name conflicts were resolved for a node, list all previously
+colliding nodes in its disambig-list slot."
+  (let* ((all-nodes (flat-node-list tn))
+         (all-node-names
+          ;; prepend dummy because delete! cannot remove first elements
+          (cons #f (map node-name all-nodes)))
+         (conflict-groups   ; list of lists (NODENAME NODE1 NODE2 ...)
+          (filter (lambda (lst) (> (length lst) 2))
+                  (group-by-function-result node-name all-nodes))))
+    (for-each
+     (lambda (conflict-group)
+       (delete! (car conflict-group) all-node-names)
+       (ly:message (_ "Resolve node name conflict for `~a':")
+                   (car conflict-group))
+       (for-each
+        (lambda (node)
+          (set! (disambig-list node) (delete node (cdr conflict-group)))
+          (let* ((initial-candidate-node-name
+                  (string-append (node-name node)
+                                 (string-or (disambig-suffix node))))
+                 (candidate-node-name initial-candidate-node-name)
+                 (n 1))
+            (while (member candidate-node-name all-node-names)
+                   (set! n (1+ n))
+                   (set! candidate-node-name
+                         (format #f "~a (~a)"
+                                 initial-candidate-node-name
+                                 n)))
+            (ly:message (format #f "  --> `~a'" candidate-node-name))
+            (set! (node-name node) candidate-node-name)
+            (set! all-node-names (cons candidate-node-name all-node-names))))
+        (cdr conflict-group)))
+     conflict-groups)
+    tn))
 
 
 ;;; Complete texinfo document

@@ -196,7 +196,7 @@ music expression) @var{MyMusicEvent} is specifically of a type
 are defined in @code{ly/engraver-init.ly}."
     ;; For backwards compatibility of links, use no suffix for layout
     ;; contexts.
-    #:node-suffix ""))
+    #:disambig-suffix ""))
 
 (define (get-midi-contexts-doc parser)
   (make <context-type-doc>
@@ -207,7 +207,7 @@ are defined in @code{ly/engraver-init.ly}."
     #:text "MIDI contexts are built from
 @ref{Performers} to produce MIDI output. Their default versions are
 defined in @code{ly/performer-init.ly}"
-    #:node-suffix " (MIDI)"))
+    #:disambig-suffix " (MIDI)"))
 
 (define all-context-type-docs-list #f)
 
@@ -321,7 +321,7 @@ control their behaviour."
 (define tunable-context-properties-doc
   (make <property-type-doc>
     #:name "Tunable context properties"
-    #:type-string "tunable context property"
+    #:type-string "context property"
     #:desc "All tunable context properties."
     #:subnode-class <context-property-doc>
     #:low-level-records
@@ -333,7 +333,7 @@ control their behaviour."
 (define internal-context-properties-doc
   (make <property-type-doc>
     #:name "Internal context properties"
-    #:type-string "internal context property"
+    #:type-string "context property"
     #:desc "All internal context properties."
     #:subnode-class <context-property-doc>
     #:low-level-records
@@ -422,7 +422,7 @@ control their behaviour."
 (define tunable-grob-properties-doc
   (make <property-type-doc>
     #:name "Tunable layout properties"
-    #:type-string "tunable layout property"
+    #:type-string "layout property"
     #:desc "All tunable layout properties in a big list."
     #:subnode-class <backend-property-doc>
     #:low-level-records
@@ -431,7 +431,7 @@ control their behaviour."
 (define internal-grob-properties-doc
   (make <property-type-doc>
     #:name "Internal layout properties"
-    #:type-string "internal layout property"
+    #:type-string "layout property"
     #:desc "All internal layout properties in a big list."
     #:subnode-class <backend-property-doc>
     #:low-level-records

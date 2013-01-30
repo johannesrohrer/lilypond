@@ -28,9 +28,11 @@
   #:use-module ((srfi srfi-1) #:select (drop-while
                                         take-while))
   #:use-module ((ice-9 regex) #:select (regexp-substitute/global))
+  #:use-module ((lily) #:select (assoc-get))
   #:use-module (scm lily-sort)
   #:export (string-or
             describe-list
+            group-by-function-result
             human-listify))
 
 
@@ -74,3 +76,17 @@ defaults to human-listify."
    ((null? (cdr lst)) (car lst))
    ((null? (cddr lst)) (string-append (car lst) " and " (cadr lst)))
    (else (string-append (car lst) ", " (human-listify (cdr lst))))))
+
+(define (group-by-function-result func lst)
+  "Partition LST into sublists of elements that yield the same value
+under FUNC, with that value prepended to each sublist."
+  (let ((plist '()))
+    (map (lambda (x)
+           (let ((key (func x)))
+             (set! plist
+                   (assoc-set! plist
+                               key
+                               (append (assoc-get key plist '())
+                                       (list x))))))
+         lst)
+    plist))

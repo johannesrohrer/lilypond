@@ -73,14 +73,15 @@
 
 
 (define (get-internals-reference-texidoc parser)
-  (make <texi-document>
-    #:title "LilyPond Internals Reference"
-    #:file-name "internals"
-    #:dir-category "LilyPond"
-    ;; prepend GNU for info directory entry; must be unique
-    #:dir-key "GNU LilyPond Internals Reference"
-    #:dir-desc "Definitions for tweaking"
-    #:preamble "
+  (disambiguate-node-names!
+   (make <texi-document>
+     #:title "LilyPond Internals Reference"
+     #:file-name "internals"
+     #:dir-category "LilyPond"
+     ;; prepend GNU for info directory entry; must be unique
+     #:dir-key "GNU LilyPond Internals Reference"
+     #:dir-desc "Definitions for tweaking"
+     #:preamble "
 @include macros.itexi
 
 @ignore
@@ -113,11 +114,11 @@ For LilyPond version @version{}
 @end titlepage
 
 @contents"
-    ;; top node data
-    #:name "GNU LilyPond -- Internals Reference"
-    #:text
-    (string-append
-     "@ifhtml
+     ;; top node data
+     #:name "GNU LilyPond -- Internals Reference"
+     #:text
+     (string-append
+      "@ifhtml
 @ifclear bigpage
 This document is also available as a
 @uref{source/Documentation/internals.pdf,PDF} and as
@@ -131,24 +132,24 @@ This document is also available as a
 @end ifhtml
 
 This is the Internals Reference (IR) for version "
-     (lilypond-version)
-     " of LilyPond, the GNU music typesetter.")
-    #:children
-    (list
-     (get-music-doc-node parser)
-     (get-translation-doc-node parser)
-     layout-backend-doc-node
-     (all-scheme-functions-doc)
-     (make <texi-node>
-       #:appendix #t
-       #:name "Indices"
-       #:children
-       (list
-        (make <texi-node>
-          #:appendix #t
-          #:name "Concept index"
-          #:text "@printindex cp")
-        (make <texi-node>
-          #:appendix #t
-          #:name "Function index"
-          #:text "@printindex fn"))))))
+      (lilypond-version)
+      " of LilyPond, the GNU music typesetter.")
+     #:children
+     (list
+      (get-music-doc-node parser)
+      (get-translation-doc-node parser)
+      layout-backend-doc-node
+      (all-scheme-functions-doc)
+      (make <texi-node>
+        #:appendix #t
+        #:name "Indices"
+        #:children
+        (list
+         (make <texi-node>
+           #:appendix #t
+           #:name "Concept index"
+           #:text "@printindex cp")
+         (make <texi-node>
+           #:appendix #t
+           #:name "Function index"
+           #:text "@printindex fn")))))))

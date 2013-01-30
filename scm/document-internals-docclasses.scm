@@ -123,7 +123,11 @@
                (make (slot-ref itd 'subnode-class)
                  #:type-doc itd
                  #:low-level-record low-level-record
-                 #:numbered #f))
+                 #:numbered #f
+                 #:disambig-suffix
+                 (or
+                  (disambig-suffix itd)
+                  (format #f " (~a)" (type-string itd)))))
              (low-level-records itd))))
 
 (define-method (initialize (itd <internal-type-doc>) initargs)
@@ -185,10 +189,7 @@
 
 (define-class <context-type-doc> (<internal-type-doc>)
   (subnode-class #:init-value <context-doc>)
-  (output-def #:init-keyword #:output-def)
-  ;; The node-suffix is appended to the texinfo node name of each
-  ;; context that belongs to this output definition.
-  (node-suffix #:init-keyword #:node-suffix #:getter node-suffix))
+  (output-def #:init-keyword #:output-def))
 
 (define-method (initialize (ctd <context-type-doc>) initargs)
   (next-method)
@@ -202,10 +203,7 @@
 
 (define-method (initialize (cd <context-doc>) initargs)
   (next-method)
-  (set!
-   (node-name cd)
-   (string-append (symbol->string (name-sym cd))
-                  (node-suffix (type-doc cd)))))
+  (set! (node-name cd) (symbol->string (name-sym cd))))
 
 ;; With 'Timing', there exists at least one 'context' that appears as
 ;; an alias, but is not a true context documented in the output
@@ -387,15 +385,7 @@
 
 (define-method (initialize (pd <property-doc>) initargs)
   (next-method)
-  ;; Some property name symbols are used for several types of
-  ;; properties, for example 'tonic (music and tunable context prop.)
-  ;; or 'X-offset (music, tunable layout; also, 'x-offset in internal
-  ;; layout). Therefore the texinfo node names need disambiguation.
-  ;;
-  ;; Statically append the property type string for now, but a better,
-  ;; less cluttering solution needs to be implemented soon.
-  (set! (node-name pd)
-        (format #f "~S (~a)" (name-sym pd) (type-string pd))))
+  (set! (node-name pd) (symbol->string (name-sym pd))))
 
 (define-method (value-type-string (pd <property-doc>))
   (let* ((type-op-key (slot-ref pd 'type-object-property))
