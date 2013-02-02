@@ -201,11 +201,12 @@ immediate subclasses of MCD."
                     (not (equal? (type-doc this-cd)
                                  (type-doc cd))))
                   all-with-name-sym)))
-    (map (lambda (cd)
-           (format "Corresponding ~a: ~a.\n\n"
-                   (type-string cd)
-                   (node-ref cd)))
-         all-relevant)))
+    (map
+     (lambda (cd)
+       (format "@flushright\nCorresponding ~a: ~a.\n@end flushright\n\n"
+               (type-string cd)
+               (node-ref cd)))
+     all-relevant)))
 
 (define-method (aliases (cd <context-doc>))
   "Return a list of <context-doc> instances.
@@ -665,12 +666,12 @@ default value VAL."
 (define-method (node-text (cd <context-doc>))
   (string-append
    (next-method)
+   ;; "Corresponding [layout/midi] context: ..."
+   (string-join (corresponding-context-strings cd))
    (string-or (attr 'description cd) "(not documented)")
    "\n\n"
    ;; "This context also accepts commands for the following context(s): ..."
    (aliases-string cd)
-   ;; "Corresponding [layout/midi] context: ..."
-   (string-join (corresponding-context-strings cd))
    ;; "This context creates the following [output object(s)]: ..."
    (creations-string cd)
    ;; "This context sets the following properties: ..."
@@ -722,6 +723,7 @@ default value VAL."
 (define-method (node-text (ood <output-object-doc>))
   (let* ((namestr (node-name ood)))
     (string-append
+     (next-method)
      (describe-list
       (format #f "~a objects are not created by any translator.\n\n"
               namestr)
@@ -751,6 +753,7 @@ default value VAL."
          (uprops (lset-difference equal? props iprops))
          (objs (implementing ifd)))
     (string-append
+     (next-method)
      (description ifd)
      "\n\n"
      (describe-list

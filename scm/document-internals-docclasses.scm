@@ -88,7 +88,10 @@
             #:init-keyword #:type-doc
             #:getter type-doc)
   (low-level-record #:init-keyword #:low-level-record
-                    #:getter low-level-record))
+                    #:getter low-level-record)
+  (show-disambig #:init-value #t
+                 #:init-keyword #:show-disambig
+                 #:getter show-disambig?))
 
 (define-method (attr attribute
                      (iid <internal-item-doc>)
@@ -102,6 +105,16 @@
 (define-method (type-string (iid <internal-item-doc>))
   (let ((icd (type-doc iid)))
     (if icd (type-string icd) #f)))
+
+(define-method (disambig-list-string (iid <internal-item-doc>))
+  (describe-list ""
+                 "@flushright\nSee also %LIST.\n@end flushright\n\n"
+                 (map node-ref (disambig-list iid))))
+
+(define-method (node-text (iid <internal-item-doc>))
+  (string-append
+   (next-method)
+   (if (show-disambig? iid) (disambig-list-string iid) "")))
 
 
 ;;; Base class for IR node groups
@@ -185,7 +198,8 @@
 ;; given output definition ($default-layout,
 ;; $default-midi). Encapsulate these as low-level-records.
 
-(define-class <context-doc> (<internal-item-doc>))
+(define-class <context-doc> (<internal-item-doc>)
+  (show-disambig #:init-value #f #:getter show-disambig?))
 
 (define-class <context-type-doc> (<internal-type-doc>)
   (subnode-class #:init-value <context-doc>)
@@ -413,6 +427,7 @@
   ;; overridden with more detailed, cross-referencing information for
   ;; specific types of properties later
   (string-append
+   (next-method)
    (format #f "@code{~S} (~a)" (name-sym pd) (value-type-string pd))
    "\n\n"
    (description pd)))

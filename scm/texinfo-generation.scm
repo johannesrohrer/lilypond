@@ -55,6 +55,7 @@
             <texi-node>
             disambiguate-node-names!
             disambig-suffix
+            disambig-list
             headless-texi-dump
             node-children
             node-name
