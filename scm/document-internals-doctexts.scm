@@ -412,6 +412,13 @@ described by PROPPATH, a list of symbols."
 (define (prop-path->string path)
   (string-join (map symbol->string path) "."))
 
+(define (prop-path->texi path)
+  ;; link the top-level backend property, and use @code{} format
+  (string-append
+   (node-ref (name-sym->backend-property-doc (car path)))
+   (format "@code{~a}"
+           (string-join (map symbol->string (cdr path)) "." 'prefix))))
+
 (define (prop-push<? a b) ; for sorting (OO PROPPATH VAL) triples
   (or (ly:string-ci<? (node-name (car a)) (node-name (car b)))
       (and (equal? (car a) (car b))
@@ -423,9 +430,9 @@ described by PROPPATH, a list of symbols."
    (pushes CD)."
   (format
    #f
-   "For ~a objects, set @code{~a} to ~a"
+   "For ~a objects, set ~a to ~a"
    (node-ref (car pp-triple))
-   (prop-path->string (cadr pp-triple))
+   (prop-path->texi (cadr pp-triple))
    (scm->texi (caddr pp-triple))))
 
 (define-method (pushing (bpd <backend-property-doc>))
@@ -480,8 +487,8 @@ default value VAL."
 
 (define-method (context-properties-set-strings (cd <context-doc>))
   (map (lambda (ass) ; ass = (PROP-DOC . VAL)
-         (format #f "@item Set context property @code{~S} to ~a\n"
-                 (name-sym (car ass))
+         (format #f "@item Set context property ~a to ~a\n"
+                 (node-ref (car ass))
                  (scm->texi (cdr ass))))
          (assigns cd)))
 

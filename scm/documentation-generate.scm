@@ -34,6 +34,7 @@
  (scm document-identifiers)
  (scm document-markup)
  (scm document-type-predicates)
+ ((scm document-internals-docclasses) #:select (set-node-ref-type))
  ((scm document-internals-nodestructure)
   #:select (tunable-grob-properties-doc
             tunable-context-properties-doc))
@@ -51,6 +52,8 @@
 ;; these .tely files. Not explicitly having these headers in
 ;; notation-appendices.itely has proven inconvenient for documentation
 ;; writers and translators in the past.
+
+(set-node-ref-type 'external)
 
 (display
  (slot-ref (all-scheme-functions-doc) 'text)

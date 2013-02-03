@@ -63,6 +63,7 @@
             name-sym
             prop-table-string
             prop-value-table-string
+            set-node-ref-type
             type-doc
             type-string))
 
@@ -115,6 +116,20 @@
   (string-append
    (next-method)
    (if (show-disambig? iid) (disambig-list-string iid) "")))
+
+;; Some sections of the Internals References are also embedded into
+;; other manuals. Then references must explicitly target the IR.
+
+(define node-ref-from-internal node-ref)
+
+(define-method (node-ref-from-external (iid <internal-item-doc>))
+    (format "@rinternals{~a}" (node-name iid)))
+
+(define (set-node-ref-type refsrc)
+  "Switch between using `@ref{}' (REFSRC='internal) and
+`@rinternals{}' (REF='external) for referencing texinfo nodes."
+  (if (eq? refsrc 'internal) (set! node-ref node-ref-from-internal))
+  (if (eq? refsrc 'external) (set! node-ref node-ref-from-external)))
 
 
 ;;; Base class for IR node groups
@@ -239,6 +254,9 @@
 (define-method (node-ref (ucd <undocumented-context-doc>))
   (node-name ucd)) ; no cross-reference
 
+(define-method (node-ref-from-external (ucd <undocumented-context-doc>))
+  (node-name ucd)) ; no cross-reference
+
 
 ;;; Translators
 
@@ -318,6 +336,9 @@
                #:getter type-string))
 
 (define-method (node-ref (uoo <undocumented-output-object-doc>))
+  (node-name uoo)) ; no cross-reference for undocumented objects
+
+(define-method (node-ref-from-external (uoo <undocumented-output-object-doc>))
   (node-name uoo)) ; no cross-reference for undocumented objects
 
 
@@ -432,11 +453,19 @@
    "\n\n"
    (description pd)))
 
+(define-method (node-ref (pd <property-doc>))
+  (format "@ref{~a,,@code{~a}}" (node-name pd) (node-name pd)))
+
+(define-method (node-ref-from-external (pd <property-doc>))
+    (format "@rinternalsnamed{~a,@code{~a}}"
+             (node-name pd)
+             (node-name pd)))
+
 
 ;; property tables (for embedding elsewhere)
 
 (define-method (item-key (pd <property-doc>))
-  (format #f "@code{~S} (~a)" (name-sym pd) (value-type-string pd)))
+  (format #f "~a (~a)" (node-ref pd) (value-type-string pd)))
 
 (define-method (item-text (pd <property-doc>))
   (description pd))
