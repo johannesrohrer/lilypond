@@ -6,10 +6,10 @@
 # Pavel Fric <pavelfric@seznam.cz>, 2009-2010, 2011, 2012.
 msgid ""
 msgstr ""
-"Project-Id-Version: lilypond 2.15.37\n"
-"Report-Msgid-Bugs-To: http://post.gmane.org/post.php?group=gmane.comp.gnu.lilypond.bugs\n"
+"Project-Id-Version: lilypond 2.15.37.1\n"
+"Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2012-04-21 20:51+0200\n"
-"PO-Revision-Date: 2012-05-28 20:01+0200\n"
+"PO-Revision-Date: 2012-05-28 14:41+0200\n"
 "Last-Translator: Pavel Fric <pavelfric@seznam.cz>\n"
 "Language-Team: Czech <translation-team-cs@lists.sourceforge.net>\n"
 "Language: cs\n"
