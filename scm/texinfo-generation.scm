@@ -61,6 +61,8 @@
             node-name
             node-ref
             node-text
+            node-title
+            section-only?
             texi-dump
             <texi-document>
             write-texi-file
@@ -139,6 +141,12 @@
   (numbered #:init-keyword #:numbered
             #:init-value #t
             #:accessor numbered?)
+  ;; If this is set to #t, don't render a TeXinfo node for this
+  ;; object, only a section. However, set an anchor so that it can
+  ;; still be cross-referenced.
+  (section-only #:init-keyword #:section-only
+                #:init-value #f
+                #:accessor section-only?)
   ;; Define an accessor node-children for the following member below.
   (children #:init-keyword #:children
             #:init-value '())
@@ -187,6 +195,10 @@
         (root-level tn)
         (+ 1 (node-level parent)))))
 
+(define-method (node-title (tn <texi-node>))
+  "Title for the TeXinfo section associated with this node."
+  (node-name tn))
+
 (define-method (node-section-command (tn <texi-node>))
   (let* ((level (node-level tn))
          (command (cond
@@ -196,7 +208,7 @@
                     (texi-section-command level))
                    (else
                     (texi-unnumbered-section-command level)))))
-    (format "~a ~a\n\n" command (node-name tn))))
+    (format "~a ~a\n\n" command (node-title tn))))
 
 (define-method (node-menu-item (tn <texi-node>))
   (make <texi-item>
@@ -205,7 +217,9 @@
 
 (define-method (node-menu-table (tn <texi-node>))
   (make <texi-table>
-    #:items (map node-menu-item (node-children tn))))
+    #:items (map node-menu-item
+                 (filter (lambda (node) (not (section-only? node)))
+                         (node-children tn)))))
 
 (define-method (node-menu (tn <texi-node>))
   (if (null? (node-children tn))
@@ -226,8 +240,10 @@ headers. Include the node menu, but no subnodes."
 (define-method (texi-string (tn <texi-node>))
   "Return a texinfo string for TN. Include the node menu, but no subnodes."
   (string-append
-   (format "@node ~a\n"
-           (if (= (node-level tn) 0) "Top" (node-name tn)))
+   (if (section-only? tn)
+       (format "@anchor{~a}\n" (node-name tn))
+       (format "@node ~a\n"
+               (if (= (node-level tn) 0) "Top" (node-name tn))))
    (node-section-command tn)
    (headless-texi-string tn)))
 

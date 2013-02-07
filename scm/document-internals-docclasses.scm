@@ -391,7 +391,8 @@
 (define-class <property-doc> (<internal-item-doc> <texi-item>)
   (doc-object-property)
   (type-object-property)
-  (internal?-object-property #:init-value #f))
+  (internal?-object-property #:init-value #f)
+  (section-only #:init-value #t #:accessor section-only?))
 
 (define-class <music-property-doc> (<property-doc>)
   (doc-object-property #:init-value 'music-doc)
@@ -422,6 +423,9 @@
   (next-method)
   (set! (node-name pd) (symbol->string (name-sym pd))))
 
+(define-method (node-title (pd <property-doc>))
+  (format #f "@code{~S} (~a)" (name-sym pd) (value-type-string pd)))
+
 (define-method (value-type-string (pd <property-doc>))
   (let* ((type-op-key (slot-ref pd 'type-object-property))
          (type (object-property (name-sym pd) type-op-key)))
@@ -449,8 +453,6 @@
   ;; specific types of properties later
   (string-append
    (next-method)
-   (format #f "@code{~S} (~a)" (name-sym pd) (value-type-string pd))
-   "\n\n"
    (description pd)))
 
 (define-method (node-ref (pd <property-doc>))
