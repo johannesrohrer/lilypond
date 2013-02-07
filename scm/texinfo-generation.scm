@@ -421,14 +421,4 @@ TT's items."
             (map (lambda (item)
                    (texi-menu-item-string item (+ max-key-length 8)))
                  (table-items tt)))
-     "@end menu\n\n"
-     ;; Menus do not appear in HTML, so we make a list ourselves
-     "@ignore\n\n"
-     "@ifhtml\n"
-     "@quotation\n"
-     "@table @asis\n\n"
-     (apply string-append (map texi-ref-item-string (table-items tt)))
-     "@end table\n"
-     "@end quotation\n"
-     "@end ifhtml\n\n"
-     "@end ignore\n\n")))
+     "@end menu\n\n")))
